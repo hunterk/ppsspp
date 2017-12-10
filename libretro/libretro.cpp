@@ -28,7 +28,6 @@
 #include "gfx/gl_common.h"
 #include "gfx_es2/gpu_features.h"
 #include "Common/GraphicsContext.h"
-#include "ext/native/gfx/gl_lost_manager.h"
 #ifndef NO_FBO
 #include "native/thread/thread.h"
 #include "native/thread/threadutil.h"
@@ -398,7 +397,7 @@ static void context_reset(void)
 
       //RecreateViews(); /* TODO ? */
 
-      gl_lost();
+      //gl_lost(); /* Removed in PPSSPP upstream */
 
       initialize_gl();
 #if 0
@@ -961,7 +960,7 @@ bool retro_load_game(const struct retro_game_info *game)
 
    // We do this here, instead of in NativeInitGraphics, because the display may be reset.
    // When it's reset we don't want to forget all our managed things.
-   gl_lost_manager_init();
+   //gl_lost_manager_init(); /* Removed in PPSSPP upstream */
 
    LogManager::Init();
    LogManager *logman = LogManager::GetInstance();

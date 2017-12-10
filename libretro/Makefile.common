@@ -2,7 +2,7 @@ FFMPEGDIR		= $(CORE_DIR)/ffmpeg
 LIBRETRODIR		= $(CORE_DIR)/libretro
 COREDIR			= $(CORE_DIR)/Core
 COMMONDIR		= $(CORE_DIR)/Common
-GPUCOMMONDIR	= $(CORE_DIR)/GPU/Common
+GPUCOMMONDIR		= $(CORE_DIR)/GPU/Common
 GPUDIR			= $(CORE_DIR)/GPU
 EXTDIR			= $(CORE_DIR)/ext
 NATIVEDIR		= $(EXTDIR)/native
@@ -123,6 +123,8 @@ SOURCES_CXX += $(GPUCOMMONDIR)/VertexDecoderCommon.cpp \
 	       $(GPUCOMMONDIR)/SplineCommon.cpp \
 	       $(GPUCOMMONDIR)/FramebufferCommon.cpp \
 	       $(GPUCOMMONDIR)/ShaderId.cpp \
+	       $(GPUCOMMONDIR)/ShaderCommon.cpp \
+	       $(GPUCOMMONDIR)/ShaderTranslation.cpp \
 	       $(GPUCOMMONDIR)/GPUDebugInterface.cpp \
 	       $(GPUCOMMONDIR)/DepalettizeShaderCommon.cpp
 SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_source_function.c \
@@ -182,17 +184,55 @@ SOURCES_CXX += $(GPUCOMMONDIR)/TextureDecoder.cpp \
 				$(EXTDIR)/native/base/stringutil.cpp \
 				$(EXTDIR)/native/base/logging.cpp \
 				$(EXTDIR)/native/base/timeutil.cpp \
-				$(EXTDIR)/native/data/compression.cpp
+				$(EXTDIR)/native/data/compression.cpp \
+				$(EXTDIR)/glslang/OGLCompilersDLL/InitializeDll.cpp \
+				$(EXTDIR)/glslang/glslang/GenericCodeGen/CodeGen.cpp \
+				$(EXTDIR)/glslang/glslang/GenericCodeGen/Link.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/preprocessor/Pp.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/preprocessor/PpContext.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/preprocessor/PpTokens.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/Constant.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/InfoSink.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/Initialize.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/Intermediate.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/IntermTraverse.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/ParseContextBase.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/ParseHelper.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/PoolAlloc.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/RemoveTree.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/Scan.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/ShaderLang.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/SymbolTable.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/Versions.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/glslang_tab.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/intermOut.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/iomapper.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/limits.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/linkValidate.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/parseConst.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/propagateNoContraction.cpp \
+				$(EXTDIR)/glslang/glslang/MachineIndependent/reflection.cpp \
+				$(EXTDIR)/glslang/SPIRV/InReadableOrder.cpp \
+				$(EXTDIR)/glslang/SPIRV/GlslangToSpv.cpp \
+				$(EXTDIR)/glslang/SPIRV/Logger.cpp \
+				$(EXTDIR)/glslang/SPIRV/SpvBuilder.cpp \
+				$(EXTDIR)/SPIRV-Cross/spirv_cfg.cpp \
+				$(EXTDIR)/SPIRV-Cross/spirv_cross.cpp \
+				$(EXTDIR)/SPIRV-Cross/spirv_glsl.cpp
 
 ifeq ($(PLATFORM_EXT), win32)
 SOURCES_CXX += $(COMMONDIR)/MemArenaWin32.cpp \
+	       $(EXTDIR)/glslang/glslang/OSDependent/Windows/ossource.cpp \
 	       $(NATIVEDIR)/gfx_es2/draw_text_win.cpp
 else ifeq ($(PLATFORM_EXT), darwin)
 SOURCES_CXX += $(COMMONDIR)/MemArenaDarwin.cpp
 else ifeq ($(PLATFORM_EXT), android)
 SOURCES_CXX += $(COMMONDIR)/MemArenaAndroid.cpp
 else
-SOURCES_CXX += $(COMMONDIR)/MemArenaPosix.cpp
+SOURCES_CXX += $(COMMONDIR)/MemArenaPosix.cpp \
+	       $(EXTDIR)/glslang/glslang/OSDependent/Unix/ossource.cpp
 endif
 
 SOURCES_C   += $(NATIVEDIR)/gfx_es2/gl3stub.c \
@@ -207,7 +247,6 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(NATIVEDIR)/file/free.cpp \
 	       $(NATIVEDIR)/file/zip_read.cpp \
 	       $(NATIVEDIR)/gfx/gl_debug_log.cpp \
-	       $(NATIVEDIR)/gfx/gl_lost_manager.cpp \
 	       $(NATIVEDIR)/gfx/GLStateCache.cpp \
 	       $(NATIVEDIR)/gfx/texture_atlas.cpp \
 	       $(NATIVEDIR)/gfx_es2/draw_buffer.cpp \
@@ -240,6 +279,7 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(NATIVEDIR)/ui/ui.cpp \
 	       $(NATIVEDIR)/ui/ui_context.cpp \
 	       $(NATIVEDIR)/ui/ui_screen.cpp \
+	       $(NATIVEDIR)/ui/ui_tween.cpp \
 	       $(NATIVEDIR)/ui/view.cpp \
 	       $(NATIVEDIR)/ui/viewgroup.cpp \
 	       $(NATIVEDIR)/util/hash/hash.cpp \
