@@ -16,6 +16,8 @@
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include "Core/Reporting.h"
 
@@ -451,8 +453,6 @@ namespace Reporting
 	bool IsSupported()
 	{
 		// Disabled when using certain hacks, because they make for poor reports.
-		if (g_Config.iRenderingMode >= 2) // FBO_READFBOMEMORY_MIN
-			return false;
 		if (g_Config.bTimerHack)
 			return false;
 		if (CheatsInEffect())
@@ -504,18 +504,18 @@ namespace Reporting
 		g_Config.sReportHost = "default";
 	}
 
-	Status GetStatus()
+	ReportStatus GetStatus()
 	{
 		if (!serverWorking)
-			return Status::FAILING;
+			return ReportStatus::FAILING;
 
 		for (int pos = 0; pos < PAYLOAD_BUFFER_SIZE; ++pos)
 		{
 			if (payloadBuffer[pos].type != RequestType::NONE)
-				return Status::BUSY;
+				return ReportStatus::BUSY;
 		}
 
-		return Status::WORKING;
+		return ReportStatus::WORKING;
 	}
 
 	int NextFreePos()

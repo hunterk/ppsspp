@@ -529,6 +529,7 @@ namespace SaveState
 		return false;
 	}
 
+#ifndef MOBILE_DEVICE
 	static inline void CheckRewindState()
 	{
 		if (gpuStats.numFlips % g_Config.iRewindFlipFrequency != 0)
@@ -544,6 +545,7 @@ namespace SaveState
 		DEBUG_LOG(BOOT, "saving rewind state");
 		rewindStates.Save();
 	}
+#endif
 
 	bool HasLoadedState()
 	{
@@ -687,7 +689,7 @@ namespace SaveState
 				break;
 
 			case SAVESTATE_SAVE_SCREENSHOT:
-				callbackResult = TakeGameScreenshot(op.filename.c_str(), SCREENSHOT_JPG, SCREENSHOT_DISPLAY);
+				callbackResult = TakeGameScreenshot(op.filename.c_str(), ScreenshotFormat::JPG, SCREENSHOT_DISPLAY);
 				if (!callbackResult) {
 					ERROR_LOG(SAVESTATE, "Failed to take a screenshot for the savestate! %s", op.filename.c_str());
 				}

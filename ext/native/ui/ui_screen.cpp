@@ -33,8 +33,9 @@ void UIScreen::DoRecreateViews() {
 		delete root_;
 		root_ = nullptr;
 		CreateViews();
-		if (root_ && root_->GetDefaultFocusView()) {
-			root_->GetDefaultFocusView()->SetFocus();
+		UI::View *defaultView = root_ ? root_->GetDefaultFocusView() : nullptr;
+		if (defaultView && defaultView->GetVisibility() == UI::V_VISIBLE) {
+			defaultView->SetFocus();
 		}
 		recreateViews_ = false;
 
@@ -68,7 +69,7 @@ void UIScreen::preRender() {
 	}
 	draw->BeginFrame();
 	// Bind and clear the back buffer
-	draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, 0xFF000000 });
+	draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, 0xFF000000 });
 
 	Draw::Viewport viewport;
 	viewport.TopLeftX = 0;
@@ -160,6 +161,13 @@ bool UIDialogScreen::key(const KeyInput &key) {
 		return true;
 	}
 	return retval;
+}
+
+void UIDialogScreen::sendMessage(const char *msg, const char *value) {
+	Screen *screen = screenManager()->dialogParent(this);
+	if (screen) {
+		screen->sendMessage(msg, value);
+	}
 }
 
 bool UIScreen::axis(const AxisInput &axis) {
@@ -300,6 +308,10 @@ void PopupScreen::TriggerFinish(DialogResult result) {
 	finishResult_ = result;
 
 	OnCompleted(result);
+}
+
+void PopupScreen::resized() {
+	RecreateViews();
 }
 
 void PopupScreen::CreateViews() {

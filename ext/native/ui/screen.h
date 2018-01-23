@@ -52,8 +52,6 @@ public:
 	virtual void preRender() {}
 	virtual void render() {}
 	virtual void postRender() {}
-	virtual void deviceLost() {}
-	virtual void deviceRestore() {}
 	virtual void resized() {}
 	virtual void dialogFinished(const Screen *dialog, DialogResult result) {}
 	virtual bool touch(const TouchInput &touch) { return false;  }
@@ -115,8 +113,6 @@ public:
 
 	void render();
 	void resized();
-	void deviceLost();
-	void deviceRestore();
 	void shutdown();
 
 	// Push a dialog box in front. Currently 1-level only.
@@ -127,6 +123,7 @@ public:
 
 	// Pops the dialog away.
 	void finishDialog(Screen *dialog, DialogResult result = DR_OK);
+	Screen *dialogParent(const Screen *dialog) const;
 
 	// Instant touch, separate from the update() mechanism.
 	bool touch(const TouchInput &touch);

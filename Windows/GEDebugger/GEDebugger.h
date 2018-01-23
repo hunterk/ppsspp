@@ -70,8 +70,10 @@ private:
 	void UpdatePreviews();
 	void UpdatePrimaryPreview(const GPUgstate &state);
 	void UpdateSecondPreview(const GPUgstate &state);
-	void UpdatePrimPreview(u32 op);
+	u32 PrimPreviewOp();
+	void UpdatePrimPreview(u32 op, int which);
 	void CleanupPrimPreview();
+	void HandleRedraw(int which);
 	void UpdateSize(WORD width, WORD height);
 	void SavePosition();
 	void SetBreakNext(BreakNextType type);
@@ -80,6 +82,7 @@ private:
 	void DescribeSecondPreview(const GPUgstate &state, wchar_t desc[256]);
 	void PrimaryPreviewHover(int x, int y);
 	void SecondPreviewHover(int x, int y);
+	void PreviewExport(const GPUDebugBuffer *buffer);
 	void DescribePixel(u32 pix, GPUDebugBufferFormat fmt, int x, int y, wchar_t desc[256]);
 	void DescribePixelRGBA(u32 pix, GPUDebugBufferFormat fmt, int x, int y, wchar_t desc[256]);
 
@@ -105,6 +108,8 @@ private:
 	const GPUDebugBuffer *primaryBuffer_ = nullptr;
 	const GPUDebugBuffer *secondBuffer_ = nullptr;
 
+	bool updating_ = false;
+	int previewsEnabled_ = 3;
 	int minWidth_;
 	int minHeight_;
 };

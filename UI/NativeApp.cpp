@@ -52,7 +52,6 @@
 #include "net/resolve.h"
 #include "gfx_es2/draw_text.h"
 #include "gfx_es2/gpu_features.h"
-#include "gfx/gl_lost_manager.h"
 #include "i18n/i18n.h"
 #include "input/input_state.h"
 #include "math/fast/fast_math.h"
@@ -93,6 +92,7 @@
 #include "UI/HostTypes.h"
 #include "UI/OnScreenDisplay.h"
 #include "UI/MiscScreens.h"
+#include "UI/RemoteISOScreen.h"
 #include "UI/TiltEventProcessor.h"
 #include "UI/BackgroundAudio.h"
 #include "UI/TextureUtil.h"
@@ -129,11 +129,6 @@ ScreenManager *screenManager;
 std::string config_filename;
 
 bool g_graphicsInited;
-
-#ifdef IOS
-bool iosCanUseJit;
-bool targetIsJailbroken;
-#endif
 
 // Really need to clean this mess of globals up... but instead I add more :P
 bool g_TakeScreenshot;
@@ -191,10 +186,7 @@ int Win32Mix(short *buffer, int numSamples, int bits, int rate, int channels) {
 #endif
 
 // globals
-#ifndef _WIN32
-static AndroidLogger *logger = 0;
-#endif
-
+static AndroidLogger *logger = nullptr;
 std::string boot_filename = "";
 
 void NativeHost::InitSound() {
@@ -372,8 +364,6 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 		LogManager::Init();
 
 #ifndef _WIN32
-	logger = new AndroidLogger();
-
 	g_Config.AddSearchPath(user_data_path);
 	g_Config.AddSearchPath(g_Config.memStickDirectory + "PSP/SYSTEM/");
 	g_Config.SetDefaultPath(g_Config.memStickDirectory + "PSP/SYSTEM/");
@@ -499,9 +489,13 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 		logman->SetEnabled(type, true);
 		logman->SetLogLevel(type, logLevel);
 	}
-#ifdef __ANDROID__
-	logman->AddListener(logger);
 #endif
+
+#if defined(__ANDROID__) || (defined(MOBILE_DEVICE) && !defined(_DEBUG))
+	// Enable basic logging for any kind of mobile device, since LogManager doesn't.
+	// The MOBILE_DEVICE/_DEBUG condition matches LogManager.cpp.
+	logger = new AndroidLogger();
+	logman->AddListener(logger);
 #endif
 
 	// Allow the lang directory to be overridden for testing purposes (e.g. Android, where it's hard to 
@@ -545,6 +539,10 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 		screenManager->switchScreen(new LogoScreen());
 	}
 
+	if (g_Config.bRemoteShareOnStartup) {
+		StartRemoteISOSharing();
+	}
+
 	std::string sysName = System_GetProperty(SYSPROP_NAME);
 	isOuya = KeyMap::IsOuya(sysName);
 
@@ -559,9 +557,6 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 	// We do this here, instead of in NativeInitGraphics, because the display may be reset.
 	// When it's reset we don't want to forget all our managed things.
 	SetGPUBackend((GPUBackend) g_Config.iGPUBackend);
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		gl_lost_manager_init();
-	}
 
 	// Must be done restarting by now.
 	restarting = false;
@@ -694,12 +689,18 @@ bool NativeInitGraphics(GraphicsContext *graphicsContext) {
 
 	g_gameInfoCache = new GameInfoCache();
 
+	if (gpu)
+		gpu->DeviceRestore();
+
 	g_graphicsInited = true;
 	ILOG("NativeInitGraphics completed");
 	return true;
 }
 
 void NativeShutdownGraphics() {
+	if (gpu)
+		gpu->DeviceLost();
+
 	g_graphicsInited = false;
 	ILOG("NativeShutdownGraphics");
 
@@ -721,8 +722,14 @@ void NativeShutdownGraphics() {
 	ui_draw2d.Shutdown();
 	ui_draw2d_front.Shutdown();
 
-	colorPipeline->Release();
-	texColorPipeline->Release();
+	if (colorPipeline) {
+		colorPipeline->Release();
+		colorPipeline = nullptr;
+	}
+	if (texColorPipeline) {
+		texColorPipeline->Release();
+		texColorPipeline = nullptr;
+	}
 
 	ILOG("NativeShutdownGraphics done");
 }
@@ -756,7 +763,7 @@ void TakeScreenshot() {
 		i++;
 	}
 
-	bool success = TakeGameScreenshot(filename, g_Config.bScreenshotsAsPNG ? SCREENSHOT_PNG : SCREENSHOT_JPG, SCREENSHOT_OUTPUT);
+	bool success = TakeGameScreenshot(filename, g_Config.bScreenshotsAsPNG ? ScreenshotFormat::PNG : ScreenshotFormat::JPG, SCREENSHOT_OUTPUT);
 	if (success) {
 		osm.Show(filename);
 	} else {
@@ -814,7 +821,8 @@ void NativeRender(GraphicsContext *graphicsContext) {
 	case GPUBackend::DIRECT3D9:
 		ortho.setOrthoD3D(0.0f, xres, yres, 0.0f, -1.0f, 1.0f);
 		Matrix4x4 translation;
-		translation.setTranslation(Vec3(-0.5f, -0.5f, 0.0f));
+		// Account for the small window adjustment.
+		translation.setTranslation(Vec3(-0.5f * g_dpi_scale_x / g_dpi_scale_real_x, -0.5f * g_dpi_scale_y / g_dpi_scale_real_y, 0.0f));
 		ortho = translation * ortho;
 		break;
 	case GPUBackend::DIRECT3D11:
@@ -839,7 +847,6 @@ void NativeRender(GraphicsContext *graphicsContext) {
 	}
 
 	if (resized) {
-		ILOG("resized was set to true - resizing");
 		resized = false;
 
 		if (uiContext) {
@@ -859,14 +866,16 @@ void NativeRender(GraphicsContext *graphicsContext) {
 #endif
 		}
 
+		// Test lost/restore on PC
+#if 0
+		if (gpu) {
+			gpu->DeviceLost();
+			gpu->DeviceRestore();
+		}
+#endif
+
 		graphicsContext->Resize();
 		screenManager->resized();
-
-		// Do not enable unless you are testing device-loss on Windows
-#if 0
-		screenManager->deviceLost();
-		screenManager->deviceRestore();
-#endif
 
 		// TODO: Move this to new GraphicsContext objects for each backend.
 #ifndef _WIN32
@@ -937,37 +946,20 @@ void HandleGlobalMessage(const std::string &msg, const std::string &value) {
 void NativeUpdate() {
 	PROFILE_END_FRAME();
 
+	std::vector<PendingMessage> toProcess;
 	{
 		std::lock_guard<std::mutex> lock(pendingMutex);
-		for (size_t i = 0; i < pendingMessages.size(); i++) {
-			HandleGlobalMessage(pendingMessages[i].msg, pendingMessages[i].value);
-			screenManager->sendMessage(pendingMessages[i].msg.c_str(), pendingMessages[i].value.c_str());
-		}
+		toProcess = std::move(pendingMessages);
 		pendingMessages.clear();
+	}
+
+	for (size_t i = 0; i < toProcess.size(); i++) {
+		HandleGlobalMessage(toProcess[i].msg, toProcess[i].value);
+		screenManager->sendMessage(toProcess[i].msg.c_str(), toProcess[i].value.c_str());
 	}
 
 	g_DownloadManager.Update();
 	screenManager->update();
-}
-
-void NativeDeviceLost() {
-	ILOG("NativeDeviceLost");
-	// We start by calling gl_lost - this lets objects zero their native GL objects
-	// so they then don't try to delete them as well.
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		gl_lost();
-	}
-	if (g_gameInfoCache)
-		g_gameInfoCache->Clear();
-	screenManager->deviceLost();
-}
-
-void NativeDeviceRestore() {
-	ILOG("NativeDeviceRestore");
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		gl_restore();
-	}
-	screenManager->deviceRestore();
 }
 
 bool NativeIsAtTopLevel() {
@@ -1126,9 +1118,6 @@ void NativeShutdown() {
 	screenManager = nullptr;
 
 	host->ShutdownGraphics();
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		gl_lost_manager_shutdown();
-	}
 
 #if !PPSSPP_PLATFORM(UWP)
 	delete host;
@@ -1149,6 +1138,9 @@ void NativeShutdown() {
 	System_SendMessage("finish", "");
 
 	net::Shutdown();
+
+	delete logger;
+	logger = nullptr;
 
 	// Previously we did exit() here on Android but that makes it hard to do things like restart on backend change.
 	// I think we handle most globals correctly or correct-enough now.

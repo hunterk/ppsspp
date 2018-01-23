@@ -56,6 +56,9 @@ public:
 	void DeviceLost();
 	void DeviceRestore(VulkanContext *vulkan);
 
+	std::vector<std::string> DebugGetSamplerIDs() const;
+	std::string DebugGetSamplerString(std::string id, DebugShaderStringType stringType);
+
 private:
 	VulkanContext *vulkan_;
 	DenseHashMap<SamplerCacheKey, VkSampler, (VkSampler)VK_NULL_HANDLE> cache_;
@@ -107,6 +110,13 @@ public:
 
 	bool GetCurrentTextureDebug(GPUDebugBuffer &buffer, int level) override;
 
+	void GetStats(char *ptr, size_t size);
+
+	VulkanDeviceAllocator *GetAllocator() { return allocator_; }
+
+	std::vector<std::string> DebugGetSamplerIDs() const;
+	std::string DebugGetSamplerString(std::string id, DebugShaderStringType stringType);
+
 protected:
 	void BindTexture(TexCacheEntry *entry) override;
 	void Unbind() override;
@@ -115,7 +125,7 @@ protected:
 private:
 	void LoadTextureLevel(TexCacheEntry &entry, uint8_t *writePtr, int rowPitch,  int level, int scaleFactor, VkFormat dstFmt);
 	VkFormat GetDestFormat(GETextureFormat format, GEPaletteFormat clutFormat) const;
-	TexCacheEntry::Status CheckAlpha(const u32 *pixelData, VkFormat dstFmt, int stride, int w, int h);
+	TexCacheEntry::TexStatus CheckAlpha(const u32 *pixelData, VkFormat dstFmt, int stride, int w, int h);
 	void UpdateCurrentClut(GEPaletteFormat clutFormat, u32 clutBase, bool clutIndexIsSimple) override;
 
 	void ApplyTextureFramebuffer(TexCacheEntry *entry, VirtualFramebuffer *framebuffer) override;

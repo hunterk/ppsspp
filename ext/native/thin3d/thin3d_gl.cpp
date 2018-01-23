@@ -13,7 +13,6 @@
 #include "gfx/gl_debug_log.h"
 #include "gfx/GLStateCache.h"
 #include "gfx_es2/gpu_features.h"
-#include "gfx/gl_lost_manager.h"
 
 #ifdef IOS
 extern void bindDefaultFBO();
@@ -274,19 +273,15 @@ GLuint ShaderStageToOpenGL(ShaderStage stage) {
 	}
 }
 
-class OpenGLShaderModule : public ShaderModule, public GfxResourceHolder {
+class OpenGLShaderModule : public ShaderModule {
 public:
 	OpenGLShaderModule(ShaderStage stage) : stage_(stage) {
-		ILOG("Shader module created (%p)", this);
-		register_gl_resource_holder(this, "drawcontext_shader_module", 0);
 		glstage_ = ShaderStageToOpenGL(stage);
 	}
 
 	~OpenGLShaderModule() {
-		ILOG("Shader module destroyed (%p)", this);
 		if (shader_)
 			glDeleteShader(shader_);
-		unregister_gl_resource_holder(this);
 	}
 
 	bool Compile(ShaderLanguage language, const uint8_t *data, size_t dataSize);
@@ -300,19 +295,6 @@ public:
 	}
 	ShaderStage GetStage() const override {
 		return stage_;
-	}
-
-	void GLLost() override {
-		ILOG("Shader module lost");
-		// Shader has been destroyed since the old context is gone, so let's zero it.
-		shader_ = 0;
-	}
-
-	void GLRestore() override {
-		ILOG("Shader module being restored");
-		if (!Compile(language_, (const uint8_t *)source_.data(), source_.size())) {
-			ELOG("Shader restore compilation failed: %s", source_.c_str());
-		}
 	}
 
 private:
@@ -355,15 +337,13 @@ bool OpenGLShaderModule::Compile(ShaderLanguage language, const uint8_t *data, s
 	return ok_;
 }
 
-class OpenGLInputLayout : public InputLayout, GfxResourceHolder {
+class OpenGLInputLayout : public InputLayout {
 public:
 	~OpenGLInputLayout();
 
 	void Apply(const void *base = nullptr);
 	void Unapply();
 	void Compile();
-	void GLRestore() override;
-	void GLLost() override;
 	bool RequiresBuffer() {
 		return id_ != 0;
 	}
@@ -381,15 +361,12 @@ struct UniformInfo {
 	int loc_;
 };
 
-class OpenGLPipeline : public Pipeline, GfxResourceHolder {
+class OpenGLPipeline : public Pipeline {
 public:
 	OpenGLPipeline() {
 		program_ = 0;
-		// Priority 1 so this gets restored after the shaders.
-		register_gl_resource_holder(this, "drawcontext_pipeline", 1);
 	}
 	~OpenGLPipeline() {
-		unregister_gl_resource_holder(this);
 		for (auto &iter : shaders) {
 			iter->Release();
 		}
@@ -403,15 +380,6 @@ public:
 	bool LinkShaders();
 
 	int GetUniformLoc(const char *name);
-
-	void GLLost() override {
-		program_ = 0;
-	}
-
-	void GLRestore() override {
-		// Shaders will have been restored before the pipeline.
-		LinkShaders();
-	}
 
 	bool RequiresBuffer() override {
 		return inputLayout->RequiresBuffer();
@@ -751,24 +719,10 @@ void OpenGLTexture::AutoGenMipmaps() {
 	}
 }
 
-class OpenGLFramebuffer : public Framebuffer, public GfxResourceHolder {
+class OpenGLFramebuffer : public Framebuffer {
 public:
-	OpenGLFramebuffer() {
-		register_gl_resource_holder(this, "framebuffer", 0);
-	}
+	OpenGLFramebuffer() {}
 	~OpenGLFramebuffer();
-
-	void GLLost() override {
-		handle = 0;
-		color_texture = 0;
-		z_stencil_buffer = 0;
-		z_buffer = 0;
-		stencil_buffer = 0;
-	}
-
-	void GLRestore() override {
-		ELOG("Restoring framebuffers not yet implemented");
-	}
 
 	GLuint handle = 0;
 	GLuint color_texture = 0;
@@ -949,8 +903,8 @@ bool OpenGLContext::CopyFramebufferToMemorySync(Framebuffer *src, int channelBit
 	}
 	// Apply the correct alignment.
 	glPixelStorei(GL_PACK_ALIGNMENT, alignment);
-	if (!gl_extensions.IsGLES || (gl_extensions.GLES3 && caps_.vendor != GPUVendor::VENDOR_NVIDIA)) {
-		// Some drivers seem to require we specify this.  See #8254.
+	if (!gl_extensions.IsGLES || gl_extensions.GLES3) {
+		// Even if not required, some drivers seem to require we specify this.  See #8254.
 		glPixelStorei(GL_PACK_ROW_LENGTH, pixelStride);
 	}
 
@@ -991,14 +945,6 @@ void OpenGLInputLayout::Compile() {
 	}
 	needsEnable_ = true;
 	lastBase_ = -1;
-}
-
-void OpenGLInputLayout::GLLost() {
-	id_ = 0;
-}
-
-void OpenGLInputLayout::GLRestore() {
-	Compile();
 }
 
 DepthStencilState *OpenGLContext::CreateDepthStencilState(const DepthStencilStateDesc &desc) {
@@ -1077,7 +1023,7 @@ RasterState *OpenGLContext::CreateRasterState(const RasterStateDesc &desc) {
 	return rs;
 }
 
-class OpenGLBuffer : public Buffer, GfxResourceHolder {
+class OpenGLBuffer : public Buffer {
 public:
 	OpenGLBuffer(size_t size, uint32_t flags) {
 		glGenBuffers(1, &buffer_);
@@ -1090,26 +1036,14 @@ public:
 		totalSize_ = size;
 		glBindBuffer(target_, buffer_);
 		glBufferData(target_, size, NULL, usage_);
-		register_gl_resource_holder(this, "drawcontext_buffer", 0);
 	}
 	~OpenGLBuffer() override {
-		unregister_gl_resource_holder(this);
 		glDeleteBuffers(1, &buffer_);
 	}
 
 	void Bind(int offset) {
 		// TODO: Can't support offset using ES 2.0
 		glBindBuffer(target_, buffer_);
-	}
-
-	void GLLost() override {
-		buffer_ = 0;
-	}
-
-	void GLRestore() override {
-		ILOG("Recreating vertex buffer after gl_restore");
-		totalSize_ = 0;  // Will cause a new glBufferData call. Should genBuffers again though?
-		glGenBuffers(1, &buffer_);
 	}
 
 	GLuint buffer_;
@@ -1727,9 +1661,12 @@ void OpenGLContext::BindFramebufferAsRenderTarget(Framebuffer *fbo, const Render
 #else
 		glClearDepth(rp.clearDepth);
 #endif
-		glClearStencil(rp.clearStencil);
-		clearFlags |= GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
+		clearFlags |= GL_DEPTH_BUFFER_BIT;
 		glstate.depthWrite.force(GL_TRUE);
+	}
+	if (rp.stencil == RPAction::CLEAR) {
+		glClearStencil(rp.clearStencil);
+		clearFlags |= GL_STENCIL_BUFFER_BIT;
 		glstate.stencilFunc.force(GL_ALWAYS, 0, 0);
 		glstate.stencilMask.force(0xFF);
 	}
@@ -1743,6 +1680,8 @@ void OpenGLContext::BindFramebufferAsRenderTarget(Framebuffer *fbo, const Render
 	}
 	if (rp.depth == RPAction::CLEAR) {
 		glstate.depthWrite.restore();
+	}
+	if (rp.stencil == RPAction::CLEAR) {
 		glstate.stencilFunc.restore();
 		glstate.stencilMask.restore();
 	}
@@ -1847,7 +1786,6 @@ void OpenGLContext::BindFramebufferAsTexture(Framebuffer *fbo, int binding, FBCh
 }
 
 OpenGLFramebuffer::~OpenGLFramebuffer() {
-	unregister_gl_resource_holder(this);
 	CHECK_GL_ERROR_IF_DEBUG();
 	if (gl_extensions.ARB_framebuffer_object || gl_extensions.IsGLES) {
 		if (handle) {

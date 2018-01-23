@@ -25,6 +25,7 @@
 #include "thin3d/thin3d.h"
 
 #include "base/timeutil.h"
+#include "file/vfs.h"
 #include "math/lin/matrix4x4.h"
 
 #include "Common/ColorConv.h"
@@ -37,6 +38,7 @@
 #include "GPU/GPUState.h"
 
 #include "GPU/Common/PostShader.h"
+#include "GPU/Common/ShaderTranslation.h"
 #include "GPU/Common/TextureDecoder.h"
 #include "GPU/Common/FramebufferCommon.h"
 #include "GPU/Debugger/Stepping.h"
@@ -74,6 +76,8 @@ static const char basic_vs[] =
 	"  v_texcoord0 = a_texcoord0;\n"
 	"  gl_Position = a_position;\n"
 	"}\n";
+
+const int MAX_PBO = 2;
 
 void ConvertFromRGBA8888(u8 *dst, const u8 *src, u32 dstStride, u32 srcStride, u32 width, u32 height, GEBufferFormat format);
 
@@ -120,7 +124,44 @@ void FramebufferManagerGLES::CompilePostShader() {
 	if (shaderInfo) {
 		std::string errorString;
 		postShaderAtOutputResolution_ = shaderInfo->outputResolution;
-		postShaderProgram_ = glsl_create(shaderInfo->vertexShaderFile.c_str(), shaderInfo->fragmentShaderFile.c_str(), &errorString);
+
+		size_t sz;
+		char *vs = (char *)VFSReadFile(shaderInfo->vertexShaderFile.c_str(), &sz);
+		if (!vs)
+			return;
+		char *fs = (char *)VFSReadFile(shaderInfo->fragmentShaderFile.c_str(), &sz);
+		if (!fs) {
+			free(vs);
+			return;
+		}
+
+		std::string vshader;
+		std::string fshader;
+		bool translationFailed = false;
+		if (gl_extensions.IsCoreContext) {
+			// Gonna have to upconvert the shaders.
+			std::string errorMessage;
+			if (!TranslateShader(&vshader, GLSL_300, nullptr, vs, GLSL_140, Draw::ShaderStage::VERTEX, &errorMessage)) {
+				translationFailed = true;
+				ELOG("Failed to translate post-vshader: %s", errorMessage.c_str());
+			}
+			if (!TranslateShader(&fshader, GLSL_300, nullptr, fs, GLSL_140, Draw::ShaderStage::FRAGMENT, &errorMessage)) {
+				translationFailed = true;
+				ELOG("Failed to translate post-fshader: %s", errorMessage.c_str());
+			}
+		} else {
+			vshader = vs;
+			fshader = fs;
+		}
+
+		if (!translationFailed) {
+			postShaderProgram_ = glsl_create_source(vshader.c_str(), fshader.c_str(), &errorString);
+		} else {
+			ERROR_LOG(FRAMEBUF, "Failed to translate post shader!");
+		}
+		free(vs);
+		free(fs);
+
 		if (!postShaderProgram_) {
 			// DO NOT turn this into a report, as it will pollute our logs with all kinds of
 			// user shader experiments.
@@ -189,25 +230,11 @@ void FramebufferManagerGLES::BindPostShader(const PostShaderUniforms &uniforms) 
 		glUniform1f(videoLoc_, uniforms.video);
 }
 
-void FramebufferManagerGLES::DestroyDraw2DProgram() {
-	if (draw2dprogram_) {
-		glsl_destroy(draw2dprogram_);
-		draw2dprogram_ = nullptr;
-	}
-	if (postShaderProgram_) {
-		glsl_destroy(postShaderProgram_);
-		postShaderProgram_ = nullptr;
-	}
-}
-
 FramebufferManagerGLES::FramebufferManagerGLES(Draw::DrawContext *draw) :
 	FramebufferManagerCommon(draw),
 	drawPixelsTex_(0),
 	drawPixelsTexFormat_(GE_FORMAT_INVALID),
 	convBuf_(nullptr),
-	draw2dprogram_(nullptr),
-	postShaderProgram_(nullptr),
-	stencilUploadProgram_(nullptr),
 	videoLoc_(-1),
 	timeLoc_(-1),
 	pixelDeltaLoc_(-1),
@@ -219,6 +246,7 @@ FramebufferManagerGLES::FramebufferManagerGLES(Draw::DrawContext *draw) :
 {
 	needBackBufferYSwap_ = true;
 	needGLESRebinds_ = true;
+	CreateDeviceObjects();
 }
 
 void FramebufferManagerGLES::Init() {
@@ -243,19 +271,38 @@ void FramebufferManagerGLES::SetDrawEngine(DrawEngineGLES *td) {
 	drawEngine_ = td;
 }
 
-FramebufferManagerGLES::~FramebufferManagerGLES() {
-	if (drawPixelsTex_)
+void FramebufferManagerGLES::CreateDeviceObjects() {
+	CompileDraw2DProgram();
+}
+
+void FramebufferManagerGLES::DestroyDeviceObjects() {
+	if (draw2dprogram_) {
+		glsl_destroy(draw2dprogram_);
+		draw2dprogram_ = nullptr;
+	}
+	if (postShaderProgram_) {
+		glsl_destroy(postShaderProgram_);
+		postShaderProgram_ = nullptr;
+	}
+	if (drawPixelsTex_) {
 		glDeleteTextures(1, &drawPixelsTex_);
-	DestroyDraw2DProgram();
+		drawPixelsTex_ = 0;
+	}
 	if (stencilUploadProgram_) {
 		glsl_destroy(stencilUploadProgram_);
+		stencilUploadProgram_ = nullptr;
 	}
+}
 
-	for (auto it = tempFBOs_.begin(), end = tempFBOs_.end(); it != end; ++it) {
-		it->second.fbo->Release();
+FramebufferManagerGLES::~FramebufferManagerGLES() {
+	DestroyDeviceObjects();
+
+	if (pixelBufObj_) {
+		for (int i = 0; i < MAX_PBO; i++) {
+			glDeleteBuffers(1, &pixelBufObj_[i].handle);
+		}
+		delete[] pixelBufObj_;
 	}
-
-	delete [] pixelBufObj_;
 	delete [] convBuf_;
 }
 
@@ -457,9 +504,9 @@ void FramebufferManagerGLES::ReformatFramebufferFrom(VirtualFramebuffer *vfb, GE
 	// to exactly reproduce in 4444 and 8888 formats.
 
 	if (old == GE_FORMAT_565) {
-		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::CLEAR, Draw::RPAction::CLEAR });
+		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::CLEAR, Draw::RPAction::CLEAR, Draw::RPAction::CLEAR });
 	} else {
-		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::KEEP, Draw::RPAction::KEEP });
+		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::KEEP, Draw::RPAction::KEEP, Draw::RPAction::KEEP });
 	}
 
 	RebindFramebuffer();
@@ -482,7 +529,7 @@ void FramebufferManagerGLES::BlitFramebufferDepth(VirtualFramebuffer *src, Virtu
 			// Let's only do this if not clearing depth.
 			glstate.scissorTest.force(false);
 			draw_->BlitFramebuffer(src->fbo, 0, 0, w, h, dst->fbo, 0, 0, w, h, Draw::FB_DEPTH_BIT, Draw::FB_BLIT_NEAREST);
-			// WARNING: If we set dst->depthUpdated here, our optimization above would be pointless.
+			dst->last_frame_depth_updated = gpuStats.numFlips;
 			glstate.scissorTest.restore();
 		}
 	}
@@ -593,11 +640,11 @@ void FramebufferManagerGLES::UpdateDownloadTempBuffer(VirtualFramebuffer *nvfb) 
 
 	// Discard the previous contents of this buffer where possible.
 	if (gl_extensions.GLES3 && glInvalidateFramebuffer != nullptr) {
-		draw_->BindFramebufferAsRenderTarget(nvfb->fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
+		draw_->BindFramebufferAsRenderTarget(nvfb->fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
 		GLenum attachments[3] = { GL_COLOR_ATTACHMENT0, GL_STENCIL_ATTACHMENT, GL_DEPTH_ATTACHMENT };
 		glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, attachments);
 	} else if (gl_extensions.IsGLES) {
-		draw_->BindFramebufferAsRenderTarget(nvfb->fbo, { Draw::RPAction::CLEAR, Draw::RPAction::CLEAR });
+		draw_->BindFramebufferAsRenderTarget(nvfb->fbo, { Draw::RPAction::CLEAR, Draw::RPAction::CLEAR, Draw::RPAction::CLEAR });
 	}
 	CHECK_GL_ERROR_IF_DEBUG();
 }
@@ -606,7 +653,7 @@ void FramebufferManagerGLES::BlitFramebuffer(VirtualFramebuffer *dst, int dstX, 
 	if (!dst->fbo || !src->fbo || !useBufferedRendering_) {
 		// This can happen if they recently switched from non-buffered.
 		if (useBufferedRendering_)
-			draw_->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::KEEP, Draw::RPAction::KEEP });
+			draw_->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::KEEP, Draw::RPAction::KEEP, Draw::RPAction::KEEP });
 		return;
 	}
 
@@ -661,7 +708,7 @@ void FramebufferManagerGLES::BlitFramebuffer(VirtualFramebuffer *dst, int dstX, 
 	if (useBlit) {
 		draw_->BlitFramebuffer(src->fbo, srcX1, srcY1, srcX2, srcY2, dst->fbo, dstX1, dstY1, dstX2, dstY2, Draw::FB_COLOR_BIT, Draw::FB_BLIT_NEAREST);
 	} else {
-		draw_->BindFramebufferAsRenderTarget(dst->fbo, { Draw::RPAction::KEEP, Draw::RPAction::KEEP });
+		draw_->BindFramebufferAsRenderTarget(dst->fbo, { Draw::RPAction::KEEP, Draw::RPAction::KEEP, Draw::RPAction::KEEP });
 		draw_->BindFramebufferAsTexture(src->fbo, 0, Draw::FB_COLOR_BIT, 0);
 
 		// Make sure our 2D drawing program is ready. Compiles only if not already compiled.
@@ -761,7 +808,6 @@ void ConvertFromRGBA8888(u8 *dst, const u8 *src, u32 dstStride, u32 srcStride, u
 
 void FramebufferManagerGLES::PackFramebufferAsync_(VirtualFramebuffer *vfb) {
 	CHECK_GL_ERROR_IF_DEBUG();
-	const int MAX_PBO = 2;
 	GLubyte *packed = 0;
 	bool unbind = false;
 	const u8 nextPBO = (currentPBO_ + 1) % MAX_PBO;
@@ -891,13 +937,18 @@ void FramebufferManagerGLES::PackFramebufferSync_(VirtualFramebuffer *vfb, int x
 		h = possibleH;
 	}
 
-	// Pixel size always 4 here because we always request RGBA8888
-	u32 bufSize = vfb->fb_stride * h * 4;
-	u32 fb_address = 0x04000000 | vfb->fb_address;
-
 	bool convert = vfb->format != GE_FORMAT_8888;
 	const int dstBpp = vfb->format == GE_FORMAT_8888 ? 4 : 2;
 	const int packWidth = std::min(vfb->fb_stride, std::min(x + w, (int)vfb->width));
+
+	// Pixel size always 4 here because we always request RGBA8888
+	u32 bufSize = packWidth * h * 4;
+	u32 fb_address = 0x04000000 | vfb->fb_address;
+
+	if (gl_extensions.IsGLES && !gl_extensions.GLES3 && packWidth != vfb->fb_stride && h != 1) {
+		// Need to use a temp buffer, since GLES2 doesn't support GL_PACK_ROW_LENGTH.
+		convert = true;
+	}
 
 	int dstByteOffset = y * vfb->fb_stride * dstBpp;
 	u8 *dst = Memory::GetPointer(fb_address + dstByteOffset);
@@ -917,10 +968,11 @@ void FramebufferManagerGLES::PackFramebufferSync_(VirtualFramebuffer *vfb, int x
 
 	if (packed) {
 		DEBUG_LOG(FRAMEBUF, "Reading framebuffer to mem, bufSize = %u, fb_address = %08x", bufSize, fb_address);
-		int packW = h == 1 ? packWidth : vfb->fb_stride;  // TODO: What's this about?
-		draw_->CopyFramebufferToMemorySync(vfb->fbo, Draw::FB_COLOR_BIT, 0, y, packW, h, Draw::DataFormat::R8G8B8A8_UNORM, packed, packW);
+		// Avoid reading the part between width and stride, if possible.
+		int packStride = convert || h == 1 ? packWidth : vfb->fb_stride;
+		draw_->CopyFramebufferToMemorySync(vfb->fbo, Draw::FB_COLOR_BIT, 0, y, packWidth, h, Draw::DataFormat::R8G8B8A8_UNORM, packed, packStride);
 		if (convert) {
-			ConvertFromRGBA8888(dst, packed, vfb->fb_stride, vfb->fb_stride, packWidth, h, vfb->format);
+			ConvertFromRGBA8888(dst, packed, vfb->fb_stride, packStride, packWidth, h, vfb->format);
 		}
 	}
 
@@ -928,7 +980,7 @@ void FramebufferManagerGLES::PackFramebufferSync_(VirtualFramebuffer *vfb, int x
 	if (gl_extensions.GLES3 && glInvalidateFramebuffer != nullptr) {
 #ifdef USING_GLES2
 		// GLES3 doesn't support using GL_READ_FRAMEBUFFER here.
-		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
+		draw_->BindFramebufferAsRenderTarget(vfb->fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
 		const GLenum target = GL_FRAMEBUFFER;
 #else
 		const GLenum target = GL_READ_FRAMEBUFFER;
@@ -958,22 +1010,25 @@ void FramebufferManagerGLES::PackDepthbuffer(VirtualFramebuffer *vfb, int x, int
 
 	DEBUG_LOG(FRAMEBUF, "Reading depthbuffer to mem at %08x for vfb=%08x", z_address, vfb->fb_address);
 
-	int packW = h == 1 ? packWidth : vfb->z_stride;
-	draw_->CopyFramebufferToMemorySync(vfb->fbo, Draw::FB_DEPTH_BIT, 0, y, packW, h, Draw::DataFormat::D32F, convBuf_, packW);
+	draw_->CopyFramebufferToMemorySync(vfb->fbo, Draw::FB_DEPTH_BIT, 0, y, packWidth, h, Draw::DataFormat::D32F, convBuf_, vfb->z_stride);
 
-	int dstByteOffset = y * vfb->fb_stride * sizeof(u16);
+	int dstByteOffset = y * vfb->z_stride * sizeof(u16);
 	u16 *depth = (u16 *)Memory::GetPointer(z_address + dstByteOffset);
 	GLfloat *packed = (GLfloat *)convBuf_;
 
 	int totalPixels = h == 1 ? packWidth : vfb->z_stride * h;
-	for (int i = 0; i < totalPixels; ++i) {
-		float scaled = FromScaledDepth(packed[i]);
-		if (scaled <= 0.0f) {
-			depth[i] = 0;
-		} else if (scaled >= 65535.0f) {
-			depth[i] = 65535;
-		} else {
-			depth[i] = (int)scaled;
+	for (int yp = 0; yp < h; ++yp) {
+		int row_offset = vfb->z_stride * yp;
+		for (int xp = 0; xp < packWidth; ++xp) {
+			const int i = row_offset + xp;
+			float scaled = FromScaledDepth(packed[i]);
+			if (scaled <= 0.0f) {
+				depth[i] = 0;
+			} else if (scaled >= 65535.0f) {
+				depth[i] = 65535;
+			} else {
+				depth[i] = (int)scaled;
+			}
 		}
 	}
 	CHECK_GL_ERROR_IF_DEBUG();
@@ -982,11 +1037,6 @@ void FramebufferManagerGLES::PackDepthbuffer(VirtualFramebuffer *vfb, int x, int
 void FramebufferManagerGLES::EndFrame() {
 	CHECK_GL_ERROR_IF_DEBUG();
 
-	// We flush to memory last requested framebuffer, if any.
-	// Only do this in the read-framebuffer modes.
-	if (updateVRAM_)
-		PackFramebufferAsync_(nullptr);
-
 	// Let's explicitly invalidate any temp FBOs used during this frame.
 	if (gl_extensions.GLES3 && glInvalidateFramebuffer != nullptr) {
 		for (auto temp : tempFBOs_) {
@@ -994,18 +1044,23 @@ void FramebufferManagerGLES::EndFrame() {
 				continue;
 			}
 
-			draw_->BindFramebufferAsRenderTarget(temp.second.fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
+			draw_->BindFramebufferAsRenderTarget(temp.second.fbo, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
 			GLenum attachments[3] = { GL_COLOR_ATTACHMENT0, GL_STENCIL_ATTACHMENT, GL_DEPTH_ATTACHMENT };
 			glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, attachments);
 		}
-		draw_->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::KEEP , Draw::RPAction::KEEP });
+		draw_->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::KEEP , Draw::RPAction::KEEP, Draw::RPAction::KEEP });
 	}
 	CHECK_GL_ERROR_IF_DEBUG();
 }
 
 void FramebufferManagerGLES::DeviceLost() {
 	DestroyAllFBOs();
-	DestroyDraw2DProgram();
+	DestroyDeviceObjects();
+}
+
+void FramebufferManagerGLES::DeviceRestore(Draw::DrawContext *draw) {
+	draw_ = draw;
+	CreateDeviceObjects();
 }
 
 void FramebufferManagerGLES::DestroyAllFBOs() {
@@ -1046,8 +1101,6 @@ void FramebufferManagerGLES::Resized() {
 		DestroyAllFBOs();
 	}
 
-	DestroyDraw2DProgram();
-
 #ifndef USING_GLES2
 	if (g_Config.iInternalResolution == 0) {
 		glLineWidth(std::max(1, (int)(renderWidth_ / 480)));
@@ -1057,10 +1110,6 @@ void FramebufferManagerGLES::Resized() {
 		glPointSize((float)g_Config.iInternalResolution);
 	}
 #endif
-
-	if (!draw2dprogram_) {
-		CompileDraw2DProgram();
-	}
 }
 
 bool FramebufferManagerGLES::GetOutputFramebuffer(GPUDebugBuffer &buffer) {

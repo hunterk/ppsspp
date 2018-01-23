@@ -237,17 +237,6 @@ bool VKShaderModule::Compile(VulkanContext *vulkan, ShaderLanguage language, con
 	return ok_;
 }
 
-
-inline VkFormat ConvertVertexDataTypeToVk(DataFormat type) {
-	switch (type) {
-	case DataFormat::R32G32_FLOAT: return VK_FORMAT_R32G32_SFLOAT;
-	case DataFormat::R32G32B32_FLOAT: return VK_FORMAT_R32G32B32_SFLOAT;
-	case DataFormat::R32G32B32A32_FLOAT: return VK_FORMAT_R32G32B32A32_SFLOAT;
-	case DataFormat::R8G8B8A8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
-	default: return VK_FORMAT_UNDEFINED;
-	}
-}
-
 class VKInputLayout : public InputLayout {
 public:
 	std::vector<VkVertexInputBindingDescription> bindings;
@@ -312,9 +301,9 @@ struct DescriptorSetKey {
 
 class VKTexture : public Texture {
 public:
-	VKTexture(VulkanContext *vulkan, VkCommandBuffer cmd, const TextureDesc &desc)
+	VKTexture(VulkanContext *vulkan, VkCommandBuffer cmd, const TextureDesc &desc, VulkanDeviceAllocator *alloc)
 		: vulkan_(vulkan), mipLevels_(desc.mipLevels), format_(desc.format) {
-		bool result = Create(cmd, desc);
+		bool result = Create(cmd, desc, alloc);
 		assert(result);
 	}
 
@@ -327,7 +316,7 @@ public:
 private:
 	void SetImageData(VkCommandBuffer cmd, int x, int y, int z, int width, int height, int depth, int level, int stride, const uint8_t *data);
 
-	bool Create(VkCommandBuffer cmd, const TextureDesc &desc);
+	bool Create(VkCommandBuffer cmd, const TextureDesc &desc, VulkanDeviceAllocator *alloc);
 
 	void Destroy() {
 		if (vkTex_) {
@@ -428,19 +417,21 @@ public:
 
 	// From Sascha's code
 	static std::string FormatDriverVersion(const VkPhysicalDeviceProperties &props) {
-		uint32_t major = (props.driverVersion >> 22) & 0x3ff;
-		uint32_t minor = (props.driverVersion >> 14) & 0x0ff;
 		if (props.vendorID == 4318) {
 			// 10 bits = major version (up to r1023)
 			// 8 bits = minor version (up to 255)
 			// 8 bits = secondary branch version/build version (up to 255)
 			// 6 bits = tertiary branch/build version (up to 63)
+			uint32_t major = (props.driverVersion >> 22) & 0x3ff;
+			uint32_t minor = (props.driverVersion >> 14) & 0x0ff;
 			uint32_t secondaryBranch = (props.driverVersion >> 6) & 0x0ff;
 			uint32_t tertiaryBranch = (props.driverVersion) & 0x003f;
 			return StringFromFormat("%d.%d.%d.%d (%08x)", major, minor, secondaryBranch, tertiaryBranch, props.driverVersion);
 		} else {
-			uint32_t branch = props.driverVersion & 0xfff;
-			minor = (props.driverVersion >> 12) & 0x0ff;
+			// Standard scheme, use the standard macros.
+			uint32_t major = VK_VERSION_MAJOR(props.driverVersion);
+			uint32_t minor = VK_VERSION_MINOR(props.driverVersion);
+			uint32_t branch = VK_VERSION_PATCH(props.driverVersion);
 			return StringFromFormat("%d.%d.%d (%08x)", major, minor, branch, props.driverVersion);
 		}
 	}
@@ -471,7 +462,7 @@ public:
 		switch (obj) {
 		case NativeObject::FRAMEBUFFER_RENDERPASS:
 			// Return a representative renderpass.
-			return (uintptr_t)renderManager_.GetRenderPass(0);
+			return (uintptr_t)renderManager_.GetRenderPass(VKRRenderPassAction::CLEAR, VKRRenderPassAction::CLEAR, VKRRenderPassAction::CLEAR);
 		case NativeObject::BACKBUFFER_RENDERPASS:
 			return (uintptr_t)renderManager_.GetBackbufferRenderPass();
 		case NativeObject::COMPATIBLE_RENDERPASS:
@@ -496,6 +487,8 @@ private:
 	VulkanContext *vulkan_ = nullptr;
 
 	VulkanRenderManager renderManager_;
+
+	VulkanDeviceAllocator *allocator_ = nullptr;
 
 	VKPipeline *curPipeline_ = nullptr;
 	VKBuffer *curVBuffers_[4]{};
@@ -600,7 +593,7 @@ VkFormat DataFormatToVulkan(DataFormat format) {
 	}
 }
 
-inline VkSamplerAddressMode AddressModeToVulkan(Draw::TextureAddressMode mode) {
+static inline VkSamplerAddressMode AddressModeToVulkan(Draw::TextureAddressMode mode) {
 	switch (mode) {
 	case TextureAddressMode::CLAMP_TO_BORDER: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	case TextureAddressMode::CLAMP_TO_EDGE: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -657,7 +650,7 @@ enum class TextureState {
 	PENDING_DESTRUCTION,
 };
 
-bool VKTexture::Create(VkCommandBuffer cmd, const TextureDesc &desc) {
+bool VKTexture::Create(VkCommandBuffer cmd, const TextureDesc &desc, VulkanDeviceAllocator *alloc) {
 	// Zero-sized textures not allowed.
 	if (desc.width * desc.height * desc.depth == 0)
 		return false;
@@ -666,7 +659,7 @@ bool VKTexture::Create(VkCommandBuffer cmd, const TextureDesc &desc) {
 	width_ = desc.width;
 	height_ = desc.height;
 	depth_ = desc.depth;
-	vkTex_ = new VulkanTexture(vulkan_);
+	vkTex_ = new VulkanTexture(vulkan_, alloc);
 	if (desc.initData.size()) {
 		for (int i = 0; i < (int)desc.initData.size(); i++) {
 			this->SetImageData(cmd, 0, 0, 0, width_, height_, depth_, i, 0, desc.initData[i]);
@@ -758,9 +751,13 @@ VKContext::VKContext(VulkanContext *vulkan, bool splitSubmit)
 	pipelineCache_ = vulkan_->CreatePipelineCache();
 
 	renderManager_.SetSplitSubmit(splitSubmit);
+
+	allocator_ = new VulkanDeviceAllocator(vulkan_, 256 * 1024, 2048 * 1024);
 }
 
 VKContext::~VKContext() {
+	allocator_->Destroy();
+	delete allocator_;
 	// This also destroys all descriptor sets.
 	for (int i = 0; i < VulkanContext::MAX_INFLIGHT_FRAMES; i++) {
 		frame_[i].descSets_.clear();
@@ -782,6 +779,7 @@ void VKContext::BeginFrame() {
 	// OK, we now know that nothing is reading from this frame's data pushbuffer,
 	push_->Reset();
 	push_->Begin(vulkan_);
+	allocator_->Begin();
 
 	frame.descSets_.clear();
 	VkResult result = vkResetDescriptorPool(device_, frame.descriptorPool, 0);
@@ -795,6 +793,7 @@ void VKContext::WaitRenderCompletion(Framebuffer *fbo) {
 void VKContext::EndFrame() {
 	// Stop collecting data in the frame's data pushbuffer.
 	push_->End();
+	allocator_->End();
 
 	renderManager_.Finish();
 
@@ -996,7 +995,7 @@ InputLayout *VKContext::CreateInputLayout(const InputLayoutDesc &desc) {
 }
 
 Texture *VKContext::CreateTexture(const TextureDesc &desc) {
-	return new VKTexture(vulkan_, renderManager_.GetInitCmd(), desc);
+	return new VKTexture(vulkan_, renderManager_.GetInitCmd(), desc, allocator_);
 }
 
 void VKTexture::SetImageData(VkCommandBuffer cmd, int x, int y, int z, int width, int height, int depth, int level, int stride, const uint8_t *data) {
@@ -1015,7 +1014,7 @@ void VKTexture::SetImageData(VkCommandBuffer cmd, int x, int y, int z, int width
 	vkTex_->Unlock(cmd);
 }
 
-inline void CopySide(VkStencilOpState &dest, const StencilSide &src) {
+static inline void CopySide(VkStencilOpState &dest, const StencilSide &src) {
 	dest.compareMask = src.compareMask;
 	dest.reference = src.reference;
 	dest.writeMask = src.writeMask;
@@ -1112,24 +1111,6 @@ int VKPipeline::GetUniformLoc(const char *name) {
 	}
 
 	return loc;
-}
-
-inline VkPrimitiveTopology PrimToVK(Primitive prim) {
-	switch (prim) {
-	case Primitive::POINT_LIST: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-	case Primitive::LINE_LIST: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-	case Primitive::LINE_LIST_ADJ: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
-	case Primitive::LINE_STRIP: return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
-	case Primitive::LINE_STRIP_ADJ: return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY;
-	case Primitive::TRIANGLE_LIST: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	case Primitive::TRIANGLE_LIST_ADJ: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY;
-	case Primitive::TRIANGLE_STRIP: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-	case Primitive::TRIANGLE_STRIP_ADJ: return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY;
-	case Primitive::TRIANGLE_FAN: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
-	case Primitive::PATCH_LIST: return VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
-	default:
-		return VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
-	}
 }
 
 void VKContext::UpdateDynamicUniformBuffer(const void *ub, size_t size) {
@@ -1314,7 +1295,7 @@ private:
 
 Framebuffer *VKContext::CreateFramebuffer(const FramebufferDesc &desc) {
 	VkCommandBuffer cmd = renderManager_.GetInitCmd();
-	VKRFramebuffer *vkrfb = new VKRFramebuffer(vulkan_, cmd, renderManager_.GetRenderPass(0), desc.width, desc.height);
+	VKRFramebuffer *vkrfb = new VKRFramebuffer(vulkan_, cmd, renderManager_.GetRenderPass(VKRRenderPassAction::CLEAR, VKRRenderPassAction::CLEAR, VKRRenderPassAction::CLEAR), desc.width, desc.height);
 	return new VKFramebuffer(vkrfb);
 }
 

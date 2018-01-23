@@ -60,7 +60,7 @@ void DevMenu::CreatePopupContents(UI::ViewGroup *parent) {
 	I18NCategory *dev = GetI18NCategory("Developer");
 	I18NCategory *sy = GetI18NCategory("System");
 
-	ScrollView *scroll = new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT));
+	ScrollView *scroll = new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT, 1.0f));
 	LinearLayout *items = new LinearLayout(ORIENT_VERTICAL);
 
 #if !defined(MOBILE_DEVICE)
@@ -337,6 +337,8 @@ void SystemInfoScreen::CreateViews() {
 
 	// NOTE: Do not translate this section. It will change a lot and will be impossible to keep up.
 	I18NCategory *di = GetI18NCategory("Dialog");
+	I18NCategory *si = GetI18NCategory("SysInfo");
+	I18NCategory *gr = GetI18NCategory("Graphics");
 	root_ = new AnchorLayout(new LayoutParams(FILL_PARENT, FILL_PARENT));
 
 	ViewGroup *leftColumn = new AnchorLayout(new LinearLayoutParams(1.0f));
@@ -353,78 +355,82 @@ void SystemInfoScreen::CreateViews() {
 	LinearLayout *deviceSpecs = new LinearLayout(ORIENT_VERTICAL);
 	deviceSpecs->SetSpacing(0);
 	deviceSpecsScroll->Add(deviceSpecs);
-	tabHolder->AddTab("Device Info", deviceSpecsScroll);
+	tabHolder->AddTab(si->T("Device Info"), deviceSpecsScroll);
 
-	deviceSpecs->Add(new ItemHeader("System Information"));
-	deviceSpecs->Add(new InfoItem("Name", System_GetProperty(SYSPROP_NAME)));
-	deviceSpecs->Add(new InfoItem("Lang/Region", System_GetProperty(SYSPROP_LANGREGION)));
+	deviceSpecs->Add(new ItemHeader(si->T("System Information")));
+	deviceSpecs->Add(new InfoItem(si->T("System Name", "Name"), System_GetProperty(SYSPROP_NAME)));
+	deviceSpecs->Add(new InfoItem(si->T("Lang/Region"), System_GetProperty(SYSPROP_LANGREGION)));
 	std::string board = System_GetProperty(SYSPROP_BOARDNAME);
 	if (!board.empty())
-		deviceSpecs->Add(new InfoItem("Board", board));
-	deviceSpecs->Add(new InfoItem("ABI", GetCompilerABI()));
+		deviceSpecs->Add(new InfoItem(si->T("Board"), board));
+	deviceSpecs->Add(new InfoItem(si->T("ABI"), GetCompilerABI()));
 #ifdef _WIN32
 	if (IsDebuggerPresent()) {
-		deviceSpecs->Add(new InfoItem("Debugger Present", "Yes"));
+		deviceSpecs->Add(new InfoItem(si->T("Debugger Present"), di->T("Yes")));
 	}
 #endif
 
-	deviceSpecs->Add(new ItemHeader("CPU Information"));
-	deviceSpecs->Add(new InfoItem("Name", cpu_info.brand_string));
+	deviceSpecs->Add(new ItemHeader(si->T("CPU Information")));
+	deviceSpecs->Add(new InfoItem(si->T("CPU Name", "Name"), cpu_info.brand_string));
 #if defined(ARM) || defined(ARM64) || defined(MIPS)
-	deviceSpecs->Add(new InfoItem("Cores", StringFromInt(cpu_info.num_cores)));
+	deviceSpecs->Add(new InfoItem(si->T("Cores"), StringFromInt(cpu_info.num_cores)));
 #else
 	int totalThreads = cpu_info.num_cores * cpu_info.logical_cpu_count;
-	std::string cores = StringFromFormat("%d (%d per core, %d cores)", totalThreads, cpu_info.logical_cpu_count, cpu_info.num_cores);
-	deviceSpecs->Add(new InfoItem("Threads", cores));
+	std::string cores = StringFromFormat(si->T("%d (%d per core, %d cores)"), totalThreads, cpu_info.logical_cpu_count, cpu_info.num_cores);
+	deviceSpecs->Add(new InfoItem(si->T("Threads"), cores));
 #endif
-	deviceSpecs->Add(new ItemHeader("GPU Information"));
+	deviceSpecs->Add(new ItemHeader(si->T("GPU Information")));
 
 	DrawContext *draw = screenManager()->getDrawContext();
 
-	deviceSpecs->Add(new InfoItem("3D API", std::string(draw->GetInfoString(InfoField::APINAME))));
-	deviceSpecs->Add(new InfoItem("Vendor", std::string(draw->GetInfoString(InfoField::VENDORSTRING))));
+	const char *apiName = gr->T(screenManager()->getDrawContext()->GetInfoString(InfoField::APINAME));
+	deviceSpecs->Add(new InfoItem(si->T("3D API"), apiName));
+	deviceSpecs->Add(new InfoItem(si->T("Vendor"), draw->GetInfoString(InfoField::VENDORSTRING)));
 	std::string vendor = draw->GetInfoString(InfoField::VENDOR);
 	if (vendor.size())
-		deviceSpecs->Add(new InfoItem("Vendor (detected)", vendor));
-	deviceSpecs->Add(new InfoItem("Driver Version", draw->GetInfoString(InfoField::DRIVER)));
+		deviceSpecs->Add(new InfoItem(si->T("Vendor (detected)"), vendor));
+	deviceSpecs->Add(new InfoItem(si->T("Driver Version"), draw->GetInfoString(InfoField::DRIVER)));
 #ifdef _WIN32
-	if (g_Config.iGPUBackend != GPU_BACKEND_VULKAN)
-		deviceSpecs->Add(new InfoItem("Driver Version", System_GetProperty(SYSPROP_GPUDRIVER_VERSION)));
+	if (GetGPUBackend() != GPUBackend::VULKAN)
+		deviceSpecs->Add(new InfoItem(si->T("Driver Version"), System_GetProperty(SYSPROP_GPUDRIVER_VERSION)));
 #if !PPSSPP_PLATFORM(UWP)
 	if (GetGPUBackend() == GPUBackend::DIRECT3D9) {
-		deviceSpecs->Add(new InfoItem("D3DX Version", StringFromFormat("%d", GetD3DXVersion())));
+		deviceSpecs->Add(new InfoItem(si->T("D3DX Version"), StringFromFormat("%d", GetD3DXVersion())));
 	}
 #endif
 #endif
-	deviceSpecs->Add(new ItemHeader("OS Information"));
-	deviceSpecs->Add(new InfoItem("Memory Page Size", StringFromFormat("%d bytes", GetMemoryProtectPageSize())));
-	deviceSpecs->Add(new InfoItem("RW/RX exclusive: ", PlatformIsWXExclusive() ? "Yes" : "No"));
+	if (GetGPUBackend() == GPUBackend::OPENGL) {
+		deviceSpecs->Add(new InfoItem(si->T("Core Context"), gl_extensions.IsCoreContext ? di->T("Active") : di->T("Inactive")));
+	}
+	deviceSpecs->Add(new ItemHeader(si->T("OS Information")));
+	deviceSpecs->Add(new InfoItem(si->T("Memory Page Size"), StringFromFormat(si->T("%d bytes"), GetMemoryProtectPageSize())));
+	deviceSpecs->Add(new InfoItem(si->T("RW/RX exclusive"), PlatformIsWXExclusive() ? di->T("Active") : di->T("Inactive")));
 #ifdef ANDROID
-	deviceSpecs->Add(new InfoItem("Sustained perf mode: ", System_GetPropertyBool(SYSPROP_SUPPORTS_SUSTAINED_PERF_MODE) ? "Yes" : "No"));
+	deviceSpecs->Add(new InfoItem(si->T("Sustained perf mode"), System_GetPropertyBool(SYSPROP_SUPPORTS_SUSTAINED_PERF_MODE) ? di->T("Supported") : di->T("Unsupported")));
 #endif
 
-	const char *build = "Release";
+	const char *build = si->T("Release");
 #ifdef _DEBUG
-	build = "Debug";
+	build = si->T("Debug");
 #endif
-	deviceSpecs->Add(new InfoItem("PPSSPP build: ", build));
+	deviceSpecs->Add(new InfoItem(si->T("PPSSPP build"), build));
 
 #ifdef __ANDROID__
-	deviceSpecs->Add(new ItemHeader("Audio Information"));
-	deviceSpecs->Add(new InfoItem("Sample rate", StringFromFormat("%d Hz", System_GetPropertyInt(SYSPROP_AUDIO_SAMPLE_RATE))));
-	deviceSpecs->Add(new InfoItem("Frames per buffer", StringFromFormat("%d", System_GetPropertyInt(SYSPROP_AUDIO_FRAMES_PER_BUFFER))));
-	deviceSpecs->Add(new InfoItem("Optimal sample rate", StringFromFormat("%d Hz", System_GetPropertyInt(SYSPROP_AUDIO_OPTIMAL_SAMPLE_RATE))));
-	deviceSpecs->Add(new InfoItem("Optimal frames per buffer", StringFromFormat("%d", System_GetPropertyInt(SYSPROP_AUDIO_OPTIMAL_FRAMES_PER_BUFFER))));
+	deviceSpecs->Add(new ItemHeader(si->T("Audio Information")));
+	deviceSpecs->Add(new InfoItem(si->T("Sample rate"), StringFromFormat("%d Hz", System_GetPropertyInt(SYSPROP_AUDIO_SAMPLE_RATE))));
+	deviceSpecs->Add(new InfoItem(si->T("Frames per buffer"), StringFromFormat("%d", System_GetPropertyInt(SYSPROP_AUDIO_FRAMES_PER_BUFFER))));
+	deviceSpecs->Add(new InfoItem(si->T("Optimal sample rate"), StringFromFormat("%d Hz", System_GetPropertyInt(SYSPROP_AUDIO_OPTIMAL_SAMPLE_RATE))));
+	deviceSpecs->Add(new InfoItem(si->T("Optimal frames per buffer"), StringFromFormat("%d", System_GetPropertyInt(SYSPROP_AUDIO_OPTIMAL_FRAMES_PER_BUFFER))));
 
-	deviceSpecs->Add(new ItemHeader("Display Information"));
-	deviceSpecs->Add(new InfoItem("Native Resolution", StringFromFormat("%dx%d",
+	deviceSpecs->Add(new ItemHeader(si->T("Display Information")));
+	deviceSpecs->Add(new InfoItem(si->T("Native Resolution"), StringFromFormat("%dx%d",
 		System_GetPropertyInt(SYSPROP_DISPLAY_XRES),
 		System_GetPropertyInt(SYSPROP_DISPLAY_YRES))));
-	deviceSpecs->Add(new InfoItem("Refresh rate", StringFromFormat("%0.3f Hz", (float)System_GetPropertyInt(SYSPROP_DISPLAY_REFRESH_RATE) / 1000.0f)));
+	deviceSpecs->Add(new InfoItem(si->T("Refresh rate"), StringFromFormat("%0.3f Hz", (float)System_GetPropertyInt(SYSPROP_DISPLAY_REFRESH_RATE) / 1000.0f)));
 #endif
 
 
-	deviceSpecs->Add(new ItemHeader("Version Information"));
+	deviceSpecs->Add(new ItemHeader(si->T("Version Information")));
 	std::string apiVersion;
 	if (GetGPUBackend() == GPUBackend::OPENGL) {
 		if (gl_extensions.IsGLES) {
@@ -437,21 +443,15 @@ void SystemInfoScreen::CreateViews() {
 		if (apiVersion.size() > 30)
 			apiVersion.resize(30);
 	}
-	deviceSpecs->Add(new InfoItem("API Version", apiVersion));
-	deviceSpecs->Add(new InfoItem("Shading Language", draw->GetInfoString(InfoField::SHADELANGVERSION)));
+	deviceSpecs->Add(new InfoItem(si->T("API Version"), apiVersion));
+	deviceSpecs->Add(new InfoItem(si->T("Shading Language"), draw->GetInfoString(InfoField::SHADELANGVERSION)));
 
 #ifdef __ANDROID__
 	std::string moga = System_GetProperty(SYSPROP_MOGA_VERSION);
 	if (moga.empty()) {
-		moga = "(none detected)";
+		moga = si->T("(none detected)");
 	}
 	deviceSpecs->Add(new InfoItem("Moga", moga));
-#endif
-
-#ifdef __ANDROID__
-	char temp[256];
-	sprintf(temp, "%dx%d", System_GetPropertyInt(SYSPROP_DISPLAY_XRES), System_GetPropertyInt(SYSPROP_DISPLAY_YRES));
-	deviceSpecs->Add(new InfoItem("Display resolution", temp));
 #endif
 
 	ViewGroup *buildConfigScroll = new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, FILL_PARENT));
@@ -459,11 +459,11 @@ void SystemInfoScreen::CreateViews() {
 	LinearLayout *buildConfig = new LinearLayout(ORIENT_VERTICAL);
 	buildConfig->SetSpacing(0);
 	buildConfigScroll->Add(buildConfig);
-	tabHolder->AddTab("Build Config", buildConfigScroll);
+	tabHolder->AddTab(si->T("Build Config"), buildConfigScroll);
 
-	buildConfig->Add(new ItemHeader("Build Configuration"));
+	buildConfig->Add(new ItemHeader(si->T("Build Configuration")));
 #ifdef JENKINS
-	buildConfig->Add(new InfoItem("Built by", "Jenkins"));
+	buildConfig->Add(new InfoItem(si->T("Built by"), "Jenkins"));
 #endif
 #ifdef _DEBUG
 	buildConfig->Add(new InfoItem("_DEBUG", ""));
@@ -476,6 +476,15 @@ void SystemInfoScreen::CreateViews() {
 #ifdef MOBILE_DEVICE
 	buildConfig->Add(new InfoItem("MOBILE_DEVICE", ""));
 #endif
+#if PPSSPP_ARCH(ARMV7S)
+	buildConfig->Add(new InfoItem("ARMV7S", ""));
+#endif
+#if PPSSPP_ARCH(ARM_NEON)
+	buildConfig->Add(new InfoItem("ARM_NEON", ""));
+#endif
+#ifdef _M_SSE
+	buildConfig->Add(new InfoItem("_M_SSE", StringFromFormat("0x%x", _M_SSE)));
+#endif
 	if (System_GetPropertyBool(SYSPROP_APP_GOLD)) {
 		buildConfig->Add(new InfoItem("GOLD", ""));
 	}
@@ -486,13 +495,13 @@ void SystemInfoScreen::CreateViews() {
 	cpuExtensions->SetSpacing(0);
 	cpuExtensionsScroll->Add(cpuExtensions);
 
-	tabHolder->AddTab("CPU Extensions", cpuExtensionsScroll);
+	tabHolder->AddTab(si->T("CPU Extensions"), cpuExtensionsScroll);
 
-	cpuExtensions->Add(new ItemHeader("CPU Extensions"));
+	cpuExtensions->Add(new ItemHeader(si->T("CPU Extensions")));
 	std::vector<std::string> exts;
 	SplitString(cpu_info.Summarize(), ',', exts);
 	for (size_t i = 2; i < exts.size(); i++) {
-		cpuExtensions->Add(new TextView(exts[i]))->SetFocusable(true);
+		cpuExtensions->Add(new TextView(exts[i], new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
 	}
 
 	ViewGroup *gpuExtensionsScroll = new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, FILL_PARENT));
@@ -501,21 +510,21 @@ void SystemInfoScreen::CreateViews() {
 	gpuExtensions->SetSpacing(0);
 	gpuExtensionsScroll->Add(gpuExtensions);
 
-	if (g_Config.iGPUBackend == GPU_BACKEND_OPENGL) {
-		tabHolder->AddTab("OGL Extensions", gpuExtensionsScroll);
+	if (GetGPUBackend() == GPUBackend::OPENGL) {
+		tabHolder->AddTab(si->T("OGL Extensions"), gpuExtensionsScroll);
 
 		if (!gl_extensions.IsGLES) {
-			gpuExtensions->Add(new ItemHeader("OpenGL Extensions"));
+			gpuExtensions->Add(new ItemHeader(si->T("OpenGL Extensions")));
 		} else if (gl_extensions.GLES3) {
-			gpuExtensions->Add(new ItemHeader("OpenGL ES 3.0 Extensions"));
+			gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 3.0 Extensions")));
 		} else {
-			gpuExtensions->Add(new ItemHeader("OpenGL ES 2.0 Extensions"));
+			gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 2.0 Extensions")));
 		}
 		exts.clear();
 		SplitString(g_all_gl_extensions, ' ', exts);
 		std::sort(exts.begin(), exts.end());
-		for (size_t i = 0; i < exts.size(); i++) {
-			gpuExtensions->Add(new TextView(exts[i]))->SetFocusable(true);
+		for (auto &extension : exts) {
+			gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
 		}
 
 		exts.clear();
@@ -530,26 +539,26 @@ void SystemInfoScreen::CreateViews() {
 			eglExtensions->SetSpacing(0);
 			eglExtensionsScroll->Add(eglExtensions);
 
-			tabHolder->AddTab("EGL Extensions", eglExtensionsScroll);
+			tabHolder->AddTab(si->T("EGL Extensions"), eglExtensionsScroll);
 
-			eglExtensions->Add(new ItemHeader("EGL Extensions"));
+			eglExtensions->Add(new ItemHeader(si->T("EGL Extensions")));
 
-			for (size_t i = 0; i < exts.size(); i++) {
-				eglExtensions->Add(new TextView(exts[i]))->SetFocusable(true);
+			for (auto &extension : exts) {
+				eglExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
 			}
 		}
-	} else if (g_Config.iGPUBackend == GPU_BACKEND_VULKAN) {
-		tabHolder->AddTab("Vulkan Features", gpuExtensionsScroll);
+	} else if (GetGPUBackend() == GPUBackend::VULKAN) {
+		tabHolder->AddTab(si->T("Vulkan Features"), gpuExtensionsScroll);
 
-		gpuExtensions->Add(new ItemHeader("Vulkan Features"));
+		gpuExtensions->Add(new ItemHeader(si->T("Vulkan Features")));
 		std::vector<std::string> features = draw->GetFeatureList();
 		for (auto &feature : features) {
-			gpuExtensions->Add(new TextView(feature))->SetFocusable(true);
+			gpuExtensions->Add(new TextView(feature, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
 		}
-		gpuExtensions->Add(new ItemHeader("Vulkan Extensions"));
+		gpuExtensions->Add(new ItemHeader(si->T("Vulkan Extensions")));
 		std::vector<std::string> extensions = draw->GetExtensionList();
 		for (auto &extension : extensions) {
-			gpuExtensions->Add(new TextView(extension))->SetFocusable(true);
+			gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
 		}
 	}
 }
@@ -692,46 +701,41 @@ void JitCompareScreen::UpdateDisasm() {
 
 	I18NCategory *dev = GetI18NCategory("Developer");
 
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCacheDebug = MIPSComp::jit->GetBlockCacheDebugInterface();
 
 	char temp[256];
-	snprintf(temp, sizeof(temp), "%i/%i", currentBlock_, blockCache->GetNumBlocks());
+	snprintf(temp, sizeof(temp), "%i/%i", currentBlock_, blockCacheDebug->GetNumBlocks());
 	blockName_->SetText(temp);
 
-	if (currentBlock_ < 0 || currentBlock_ >= blockCache->GetNumBlocks()) {
+	if (currentBlock_ < 0 || currentBlock_ >= blockCacheDebug->GetNumBlocks()) {
 		leftDisasm_->Add(new TextView(dev->T("No block")));
 		rightDisasm_->Add(new TextView(dev->T("No block")));
 		blockStats_->SetText("");
 		return;
 	}
 
-	JitBlock *block = blockCache->GetBlock(currentBlock_);
+	JitBlockDebugInfo debugInfo = blockCacheDebug->GetBlockDebugInfo(currentBlock_);
 
-	snprintf(temp, sizeof(temp), "%08x", block->originalAddress);
+	snprintf(temp, sizeof(temp), "%08x", debugInfo.originalAddress);
 	blockAddr_->SetText(temp);
 
 	// Alright. First generate the MIPS disassembly.
 	
 	// TODO: Need a way to communicate branch continuing.
-	for (u32 addr = block->originalAddress; addr <= block->originalAddress + block->originalSize * 4; addr += 4) {
-		char temp[256];
-		MIPSDisAsm(Memory::Read_Instruction(addr), addr, temp, true);
-		std::string mipsDis = temp;
-		leftDisasm_->Add(new TextView(mipsDis))->SetFocusable(true);
+	for (auto line : debugInfo.origDisasm) {
+		leftDisasm_->Add(new TextView(line))->SetFocusable(true);
 	}
 
-#if defined(ARM)
-	std::vector<std::string> targetDis = DisassembleArm2(block->normalEntry, block->codeSize);
-#elif defined(ARM64)
-	std::vector<std::string> targetDis = DisassembleArm64(block->normalEntry, block->codeSize);
-#elif defined(_M_IX86) || defined(_M_X64)
-	std::vector<std::string> targetDis = DisassembleX86(block->normalEntry, block->codeSize);
-#endif
-#if defined(ARM) || defined(ARM64) || defined(_M_IX86) || defined(_M_X64)
-	for (size_t i = 0; i < targetDis.size(); i++) {
-		rightDisasm_->Add(new TextView(targetDis[i]))->SetFocusable(true);
+	// TODO : When we have both target and IR, need a third column.
+	if (debugInfo.targetDisasm.size()) {
+		for (auto line : debugInfo.targetDisasm) {
+			rightDisasm_->Add(new TextView(line))->SetFocusable(true);
+		}
+	} else {
+		for (auto line : debugInfo.irDisasm) {
+			rightDisasm_->Add(new TextView(line))->SetFocusable(true);
+		}
 	}
-#endif
 
 	int numMips = leftDisasm_->GetNumSubviews();
 	int numHost = rightDisasm_->GetNumSubviews();
@@ -744,7 +748,7 @@ UI::EventReturn JitCompareScreen::OnAddressChange(UI::EventParams &e) {
 	if (!MIPSComp::jit) {
 		return UI::EVENT_DONE;
 	}
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCache = MIPSComp::jit->GetBlockCacheDebugInterface();
 	if (!blockCache)
 		return UI::EVENT_DONE;
 	u32 addr;
@@ -764,7 +768,7 @@ UI::EventReturn JitCompareScreen::OnShowStats(UI::EventParams &e) {
 		return UI::EVENT_DONE;
 	}
 
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCache = MIPSComp::jit->GetBlockCacheDebugInterface();
 	BlockCacheStats bcStats;
 	blockCache->ComputeStats(bcStats);
 	NOTICE_LOG(JIT, "Num blocks: %i", bcStats.numBlocks);
@@ -781,7 +785,6 @@ UI::EventReturn JitCompareScreen::OnShowStats(UI::EventParams &e) {
 		}
 		ctr++;
 	}
-
 	return UI::EVENT_DONE;
 }
 
@@ -812,7 +815,7 @@ UI::EventReturn JitCompareScreen::OnBlockAddress(UI::EventParams &e) {
 		return UI::EVENT_DONE;
 	}
 
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCache = MIPSComp::jit->GetBlockCacheDebugInterface();
 	if (!blockCache)
 		return UI::EVENT_DONE;
 
@@ -830,7 +833,7 @@ UI::EventReturn JitCompareScreen::OnRandomBlock(UI::EventParams &e) {
 		return UI::EVENT_DONE;
 	}
 
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCache = MIPSComp::jit->GetBlockCacheDebugInterface();
 	if (!blockCache)
 		return UI::EVENT_DONE;
 
@@ -856,7 +859,7 @@ void JitCompareScreen::OnRandomBlock(int flag) {
 	if (!MIPSComp::jit) {
 		return;
 	}
-	JitBlockCache *blockCache = MIPSComp::jit->GetBlockCache();
+	JitBlockCacheDebugInterface *blockCache = MIPSComp::jit->GetBlockCacheDebugInterface();
 	if (!blockCache)
 		return;
 
@@ -864,21 +867,25 @@ void JitCompareScreen::OnRandomBlock(int flag) {
 	if (numBlocks > 0) {
 		bool anyWanted = false;
 		int tries = 0;
-		while (!anyWanted && tries < 10000) {
+		while (!anyWanted && tries < numBlocks) {
 			currentBlock_ = rand() % numBlocks;
-			const JitBlock *b = blockCache->GetBlock(currentBlock_);
-			for (u32 addr = b->originalAddress; addr <= b->originalAddress + b->originalSize; addr += 4) {
+			JitBlockDebugInfo b = blockCache->GetBlockDebugInfo(currentBlock_);
+			u32 mipsBytes = (u32)b.origDisasm.size() * 4;
+			for (u32 addr = b.originalAddress; addr <= b.originalAddress + mipsBytes; addr += 4) {
 				MIPSOpcode opcode = Memory::Read_Instruction(addr);
 				if (MIPSGetInfo(opcode) & flag) {
 					char temp[256];
 					MIPSDisAsm(opcode, addr, temp);
-					// INFO_LOG(HLE, "Stopping VFPU instruction: %s", temp);
+					// INFO_LOG(HLE, "Stopping at random instruction: %08x %s", addr, temp);
 					anyWanted = true;
 					break;
 				}
 			}
 			tries++;
 		}
+
+		if (!anyWanted)
+			currentBlock_ = -1;
 	}
 	UpdateDisasm();
 }
@@ -921,6 +928,7 @@ struct { DebugShaderType type; const char *name; } shaderTypes[] = {
 	{ SHADER_TYPE_VERTEXLOADER, "VertexLoader" },
 	{ SHADER_TYPE_PIPELINE, "Pipeline" },
 	{ SHADER_TYPE_DEPAL, "Depal" },
+	{ SHADER_TYPE_SAMPLER, "Sampler" },
 };
 
 void ShaderListScreen::CreateViews() {
