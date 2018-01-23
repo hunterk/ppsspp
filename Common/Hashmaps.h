@@ -121,7 +121,7 @@ public:
 	}
 
 	template<class T>
-	inline void Iterate(T func) {
+	inline void Iterate(T func) const {
 		for (size_t i = 0; i < map.size(); i++) {
 			if (state[i] == BucketState::TAKEN) {
 				func(map[i].key, map[i].value);
@@ -132,6 +132,7 @@ public:
 	void Clear() {
 		memset(state.data(), (int)BucketState::FREE, state.size());
 		count_ = 0;
+		removedCount_ = 0;
 	}
 
 	void Rebuild() {
@@ -266,7 +267,7 @@ public:
 	}
 
 	template<class T>
-	void Iterate(T func) {
+	void Iterate(T func) const {
 		for (size_t i = 0; i < map.size(); i++) {
 			if (state[i] == BucketState::TAKEN) {
 				func(map[i].hash, map[i].value);
@@ -277,6 +278,7 @@ public:
 	void Clear() {
 		memset(state.data(), (int)BucketState::FREE, state.size());
 		count_ = 0;
+		removedCount_ = 0;
 	}
 
 	// Gets rid of REMOVED tombstones, making lookups somewhat more efficient.

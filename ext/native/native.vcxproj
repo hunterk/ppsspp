@@ -192,6 +192,7 @@
     <None Include="math\fast\fast_matrix_neon.S" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Qt\QtMain.h" />
     <ClInclude Include="base\backtrace.h" />
     <ClInclude Include="base\basictypes.h" />
     <ClInclude Include="base\buffer.h" />
@@ -234,7 +235,6 @@
     <ClInclude Include="gfx\GLStateCache.h" />
     <ClInclude Include="gfx\gl_common.h" />
     <ClInclude Include="gfx\gl_debug_log.h" />
-    <ClInclude Include="gfx\gl_lost_manager.h" />
     <ClInclude Include="gfx\texture_atlas.h" />
     <ClInclude Include="gfx_es2\draw_text_android.h" />
     <ClInclude Include="gfx_es2\draw_text_qt.h" />
@@ -285,6 +285,7 @@
     <ClInclude Include="ui\ui.h" />
     <ClInclude Include="ui\ui_context.h" />
     <ClInclude Include="ui\ui_screen.h" />
+    <ClInclude Include="ui\ui_tween.h" />
     <ClInclude Include="ui\view.h" />
     <ClInclude Include="ui\viewgroup.h" />
     <ClInclude Include="util\random\rng.h" />
@@ -299,13 +300,13 @@
     <ClCompile Include="base\colorutil.cpp" />
     <ClCompile Include="base\display.cpp" />
     <ClCompile Include="base\logging.cpp" />
-    <ClCompile Include="base\PCMain.cpp">
+    <ClCompile Include="..\..\SDL\SDLMain.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="base\QtMain.cpp">
+    <ClCompile Include="..\..\Qt\QtMain.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -692,7 +693,6 @@
     <ClCompile Include="gfx\d3d9_state.cpp" />
     <ClCompile Include="gfx\GLStateCache.cpp" />
     <ClCompile Include="gfx\gl_debug_log.cpp" />
-    <ClCompile Include="gfx\gl_lost_manager.cpp" />
     <ClCompile Include="gfx\texture_atlas.cpp" />
     <ClCompile Include="gfx_es2\draw_text_android.cpp" />
     <ClCompile Include="gfx_es2\draw_text_qt.cpp" />
@@ -752,6 +752,7 @@
     <ClCompile Include="ui\ui.cpp" />
     <ClCompile Include="ui\ui_context.cpp" />
     <ClCompile Include="ui\ui_screen.cpp" />
+    <ClCompile Include="ui\ui_tween.cpp" />
     <ClCompile Include="ui\view.cpp" />
     <ClCompile Include="ui\viewgroup.cpp" />
     <ClCompile Include="util\hash\hash.cpp" />

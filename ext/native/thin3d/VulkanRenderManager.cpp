@@ -38,13 +38,20 @@ void CreateImage(VulkanContext *vulkan, VkCommandBuffer cmd, VKRImage &img, int 
 
 	vkCreateImage(vulkan->GetDevice(), &ici, nullptr, &img.image);
 
-	// TODO: If available, use nVidia's VK_NV_dedicated_allocation for framebuffers
-
 	VkMemoryRequirements memreq;
 	vkGetImageMemoryRequirements(vulkan->GetDevice(), img.image, &memreq);
 
 	VkMemoryAllocateInfo alloc{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
 	alloc.allocationSize = memreq.size;
+
+	// Hint to the driver that this allocation is image-specific. Some drivers benefit.
+	// We only bother supporting the KHR extension, not the old NV one.
+	VkMemoryDedicatedAllocateInfoKHR dedicated{ VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR };
+	if (vulkan->DeviceExtensions().DEDICATED_ALLOCATION) {
+		alloc.pNext = &dedicated;
+		dedicated.image = img.image;
+	}
+
 	vulkan->MemoryTypeFromProperties(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &alloc.memoryTypeIndex);
 	VkResult res = vkAllocateMemory(vulkan->GetDevice(), &alloc, nullptr, &img.memory);
 	assert(res == VK_SUCCESS);
@@ -84,7 +91,7 @@ void CreateImage(VulkanContext *vulkan, VkCommandBuffer cmd, VKRImage &img, int 
 		break;
 	}
 
-	TransitionImageLayout2(cmd, img.image, aspects,
+	TransitionImageLayout2(cmd, img.image, 0, 1, aspects,
 		VK_IMAGE_LAYOUT_UNDEFINED, initialLayout,
 		VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, dstStage,
 		0, dstAccessMask);
@@ -166,7 +173,7 @@ void VulkanRenderManager::CreateBackbuffers() {
 
 		// Pre-set them to PRESENT_SRC_KHR, as the first thing we do after acquiring
 		// in image to render to will be to transition them away from that.
-		TransitionImageLayout2(cmdInit, sc_buffer.image,
+		TransitionImageLayout2(cmdInit, sc_buffer.image, 0, 1,
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
@@ -225,8 +232,12 @@ void VulkanRenderManager::StopThread() {
 		// when we restart...
 		for (int i = 0; i < vulkan_->GetInflightFrames(); i++) {
 			auto &frameData = frameData_[i];
-			if (frameData.readyForRun || frameData.hasInitCommands || frameData.steps.size() != 0) {
-				Crash();
+			_assert_(!frameData.readyForRun);
+			_assert_(frameData.steps.empty());
+			if (frameData.hasInitCommands) {
+				// Clear 'em out.  This can happen on restart sometimes.
+				vkEndCommandBuffer(frameData.initCmd);
+				frameData.hasInitCommands = false;
 			}
 			frameData.readyForRun = false;
 			for (size_t i = 0; i < frameData.steps.size(); i++) {
@@ -432,7 +443,7 @@ bool VulkanRenderManager::CopyFramebufferToMemorySync(VKRFramebuffer *src, int a
 		if (src) {
 			switch (src->color.format) {
 			case VK_FORMAT_R8G8B8A8_UNORM: srcFormat = Draw::DataFormat::R8G8B8A8_UNORM; break;
-			default: assert(false);
+			default: _assert_(false);
 			}
 		}
 		else {
@@ -458,10 +469,10 @@ bool VulkanRenderManager::CopyFramebufferToMemorySync(VKRFramebuffer *src, int a
 		case VK_FORMAT_D24_UNORM_S8_UINT: srcFormat = Draw::DataFormat::D24_S8; break;
 		case VK_FORMAT_D32_SFLOAT_S8_UINT: srcFormat = Draw::DataFormat::D32F; break;
 		case VK_FORMAT_D16_UNORM_S8_UINT: srcFormat = Draw::DataFormat::D16; break;
-		default: assert(false);
+		default: _assert_(false);
 		}
 	} else {
-		assert(false);
+		_assert_(false);
 	}
 	// Need to call this after FlushSync so the pixels are guaranteed to be ready in CPU-accessible VRAM.
 	queueRunner_.CopyReadbackBuffer(w, h, srcFormat, destFormat, pixelStride, pixels);
@@ -569,7 +580,7 @@ bool VulkanRenderManager::InitDepthStencilBuffer(VkCommandBuffer cmd) {
 	if (res != VK_SUCCESS)
 		return false;
 
-	TransitionImageLayout2(cmd, depth_.image,
+	TransitionImageLayout2(cmd, depth_.image, 0, 1,
 		aspectMask,
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
@@ -703,12 +714,14 @@ void VulkanRenderManager::Finish() {
 	FrameData &frameData = frameData_[curFrame];
 	if (!useThread_) {
 		frameData.steps = std::move(steps_);
+		steps_.clear();
 		frameData.type = VKRRunType::END;
 		Run(curFrame);
 	} else {
 		std::unique_lock<std::mutex> lock(frameData.pull_mutex);
 		VLOG("PUSH: Frame[%d].readyForRun = true", curFrame);
 		frameData.steps = std::move(steps_);
+		steps_.clear();
 		frameData.readyForRun = true;
 		frameData.type = VKRRunType::END;
 		frameData.pull_condVar.notify_all();
@@ -898,12 +911,14 @@ void VulkanRenderManager::FlushSync() {
 	FrameData &frameData = frameData_[curFrame];
 	if (!useThread_) {
 		frameData.steps = std::move(steps_);
+		steps_.clear();
 		frameData.type = VKRRunType::SYNC;
 		Run(curFrame);
 	} else {
 		std::unique_lock<std::mutex> lock(frameData.pull_mutex);
 		VLOG("PUSH: Frame[%d].readyForRun = true (sync)", curFrame);
 		frameData.steps = std::move(steps_);
+		steps_.clear();
 		frameData.readyForRun = true;
 		assert(frameData.readyForFence == false);
 		frameData.type = VKRRunType::SYNC;

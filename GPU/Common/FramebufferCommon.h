@@ -40,15 +40,6 @@ enum {
 enum {
 	FB_NON_BUFFERED_MODE = 0,
 	FB_BUFFERED_MODE = 1,
-
-	// Hm, it's unfortunate that GPU has ended up as two separate values in GL and GLES.
-#ifndef USING_GLES2
-	FB_READFBOMEMORY_CPU = 2,
-	FB_READFBOMEMORY_GPU = 3,
-#else
-	FB_READFBOMEMORY_GPU = 2,
-#endif
-	FBO_READFBOMEMORY_MIN = 2
 };
 
 namespace Draw {
@@ -79,9 +70,10 @@ struct VirtualFramebuffer {
 	int last_frame_displayed;
 	int last_frame_clut;
 	int last_frame_failed;
+	int last_frame_depth_updated;
+	int last_frame_depth_render;
 	u32 clutUpdatedBytes;
 	bool memoryUpdated;
-	bool depthUpdated;
 	bool firstFrameSaved;
 
 	u32 fb_address;
@@ -283,7 +275,8 @@ public:
 
 	void SetDepthUpdated() {
 		if (currentRenderVfb_) {
-			currentRenderVfb_->depthUpdated = true;
+			currentRenderVfb_->last_frame_depth_render = gpuStats.numFlips;
+			currentRenderVfb_->last_frame_depth_updated = gpuStats.numFlips;
 		}
 	}
 	void SetColorUpdated(int skipDrawReason) {
@@ -383,7 +376,6 @@ protected:
 	u32 framebufRangeEnd_ = 0;
 
 	bool useBufferedRendering_ = false;
-	bool updateVRAM_ = false;
 	bool usePostShader_ = false;
 	bool postShaderAtOutputResolution_ = false;
 	bool postShaderIsUpscalingFilter_ = false;

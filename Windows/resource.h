@@ -241,8 +241,6 @@
 #define ID_DISASM_THREAD_KILL            40073
 #define ID_FILE_SAVESTATE_NEXT_SLOT      40074
 #define ID_FILE_SAVESTATE_NEXT_SLOT_HC   40075
-#define ID_OPTIONS_READFBOTOMEMORYGPU	 40076
-#define ID_OPTIONS_READFBOTOMEMORYCPU	 40077
 #define ID_OPTIONS_NONBUFFEREDRENDERING  40078
 #define ID_OPTIONS_FRAMESKIP_0           40079
 #define ID_OPTIONS_FRAMESKIP_1           40080
@@ -334,6 +332,13 @@
 #define ID_FILE_DUMPAUDIO                40167
 #define ID_HELP_GITHUB                   40168
 #define IDC_GEDBG_RECORD                 40169
+#define ID_GEDBG_EXPORT_IMAGE            40170
+#define ID_GEDBG_ENABLE_PREVIEW          40171
+#define ID_OPTIONS_WINDOW6X              40172
+#define ID_OPTIONS_WINDOW7X              40173
+#define ID_OPTIONS_WINDOW8X              40174
+#define ID_OPTIONS_WINDOW9X              40175
+#define ID_OPTIONS_WINDOW10X             40176
 
 // Dummy option to let the buffered rendering hotkey cycle through all the options.
 #define ID_OPTIONS_BUFFEREDRENDERINGDUMMY 40500
@@ -346,7 +351,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        256
-#define _APS_NEXT_COMMAND_VALUE         40170
+#define _APS_NEXT_COMMAND_VALUE         40177
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

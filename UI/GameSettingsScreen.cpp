@@ -48,7 +48,6 @@
 #include "Common/KeyMap.h"
 #include "Common/FileUtil.h"
 #include "Common/OSVersion.h"
-#include "Common/Vulkan/VulkanLoader.h"
 #include "Core/Config.h"
 #include "Core/Host.h"
 #include "Core/System.h"
@@ -68,10 +67,7 @@
 #include "gfx/gl_common.h"
 #endif
 
-#ifdef IOS
-extern bool iosCanUseJit;
-extern bool targetIsJailbroken;
-#endif
+extern bool VulkanMayBeAvailable();
 
 GameSettingsScreen::GameSettingsScreen(std::string gamePath, std::string gameID, bool editThenRestore)
 	: UIDialogScreenWithGameBackground(gamePath), gameID_(gameID), enableReports_(false), editThenRestore_(editThenRestore) {
@@ -98,17 +94,18 @@ bool CheckSupportInstancedTessellationGLES() {
 	bool instanceRendering = gl_extensions.GLES3 || (canUseInstanceID && canDefInstanceID);
 
 	bool textureFloat = gl_extensions.ARB_texture_float || gl_extensions.OES_texture_float;
+	bool hasTexelFetch = gl_extensions.GLES3 || (!gl_extensions.IsGLES && gl_extensions.VersionGEThan(3, 3, 0)) || gl_extensions.EXT_gpu_shader4;
 
-	return instanceRendering && vertexTexture && textureFloat;
+	return instanceRendering && vertexTexture && textureFloat && hasTexelFetch;
 #endif
 }
 
 bool IsBackendSupportHWTess() {
-	switch (g_Config.iGPUBackend) {
-	case GPU_BACKEND_OPENGL:
+	switch (GetGPUBackend()) {
+	case GPUBackend::OPENGL:
 		return CheckSupportInstancedTessellationGLES();
-	case GPU_BACKEND_VULKAN:
-	case GPU_BACKEND_DIRECT3D11:
+	case GPUBackend::VULKAN:
+	case GPUBackend::DIRECT3D11:
 		return true;
 	}
 	return false;
@@ -178,7 +175,7 @@ void GameSettingsScreen::CreateViews() {
 
 	graphicsSettings->Add(new ItemHeader(gr->T("Rendering Mode")));
 	static const char *renderingBackend[] = { "OpenGL", "Direct3D 9", "Direct3D 11", "Vulkan" };
-	PopupMultiChoice *renderingBackendChoice = graphicsSettings->Add(new PopupMultiChoice(&g_Config.iGPUBackend, gr->T("Backend"), renderingBackend, GPU_BACKEND_OPENGL, ARRAY_SIZE(renderingBackend), gr->GetName(), screenManager()));
+	PopupMultiChoice *renderingBackendChoice = graphicsSettings->Add(new PopupMultiChoice(&g_Config.iGPUBackend, gr->T("Backend"), renderingBackend, (int)GPUBackend::OPENGL, ARRAY_SIZE(renderingBackend), gr->GetName(), screenManager()));
 	renderingBackendChoice->OnChoice.Handle(this, &GameSettingsScreen::OnRenderingBackend);
 #if !PPSSPP_PLATFORM(WINDOWS)
 	renderingBackendChoice->HideChoice(1);  // D3D9
@@ -190,27 +187,21 @@ void GameSettingsScreen::CreateViews() {
 	}
 #endif
 	bool vulkanAvailable = false;
-#if PPSSPP_PLATFORM(WINDOWS) || PPSSPP_PLATFORM(ANDROID)
+#ifndef IOS
 	vulkanAvailable = VulkanMayBeAvailable();
 #endif
 	if (!vulkanAvailable) {
 		renderingBackendChoice->HideChoice(3);
 	}
 
-	static const char *renderingMode[] = { "Non-Buffered Rendering", "Buffered Rendering", "Read Framebuffers To Memory (CPU)", "Read Framebuffers To Memory (GPU)"};
+	static const char *renderingMode[] = { "Non-Buffered Rendering", "Buffered Rendering"};
 	PopupMultiChoice *renderingModeChoice = graphicsSettings->Add(new PopupMultiChoice(&g_Config.iRenderingMode, gr->T("Mode"), renderingMode, 0, ARRAY_SIZE(renderingMode), gr->GetName(), screenManager()));
 	renderingModeChoice->OnChoice.Add([=](EventParams &e) {
 		switch (g_Config.iRenderingMode) {
 		case FB_NON_BUFFERED_MODE:
-			settingInfo_->Show(gr->T("RenderingMode NonBuffered Tip", "Faster, but nothing may draw in some games"), e.v);
+			settingInfo_->Show(gr->T("RenderingMode NonBuffered Tip", "Faster, but graphics may be missing in some games"), e.v);
 			break;
 		case FB_BUFFERED_MODE:
-			break;
-#ifndef USING_GLES2
-		case FB_READFBOMEMORY_CPU:
-#endif
-		case FB_READFBOMEMORY_GPU:
-			settingInfo_->Show(gr->T("RenderingMode ReadFromMemory Tip", "Causes crashes in many games, not recommended"), e.v);
 			break;
 		}
 		return UI::EVENT_CONTINUE;
@@ -236,7 +227,6 @@ void GameSettingsScreen::CreateViews() {
 		softwareGPU->OnClick.Add([=](EventParams &e) {
 			if (g_Config.bSoftwareRendering)
 				settingInfo_->Show(gr->T("SoftGPU Tip", "Currently VERY slow"), e.v);
-			bloomHackEnable_ = !g_Config.bSoftwareRendering && (g_Config.iInternalResolution != 1);
 			return UI::EVENT_CONTINUE;
 		});
 		softwareGPU->OnClick.Handle(this, &GameSettingsScreen::OnSoftwareRendering);
@@ -257,7 +247,7 @@ void GameSettingsScreen::CreateViews() {
 
 	graphicsSettings->Add(new ItemHeader(gr->T("Features")));
 	// Hide postprocess option on unsupported backends to avoid confusion.
-	if (g_Config.iGPUBackend != GPU_BACKEND_DIRECT3D9) {
+	if (GetGPUBackend() != GPUBackend::DIRECT3D9) {
 		I18NCategory *ps = GetI18NCategory("PostShaders");
 		postProcChoice_ = graphicsSettings->Add(new ChoiceWithValueDisplay(&g_Config.sPostShaderName, gr->T("Postprocessing Shader"), ps->GetName()));
 		postProcChoice_->OnClick.Handle(this, &GameSettingsScreen::OnPostProcShader);
@@ -356,12 +346,10 @@ void GameSettingsScreen::CreateViews() {
 		}
 		return UI::EVENT_CONTINUE;
 	});
-	bezierChoiceDisable_ = g_Config.bHardwareTessellation;
-	beziersChoice->SetDisabledPtr(&bezierChoiceDisable_);
+	beziersChoice->SetDisabledPtr(&g_Config.bHardwareTessellation);
 
 	CheckBox *tessellationHW = graphicsSettings->Add(new CheckBox(&g_Config.bHardwareTessellation, gr->T("Hardware Tessellation", "Hardware tessellation (experimental)")));
 	tessellationHW->OnClick.Add([=](EventParams &e) {
-		bezierChoiceDisable_ = g_Config.bHardwareTessellation;
 		settingInfo_->Show(gr->T("HardwareTessellation Tip", "Uses hardware to make curves, always uses a fixed quality"), e.v);
 		return UI::EVENT_CONTINUE;
 	});
@@ -809,7 +797,7 @@ UI::EventReturn GameSettingsScreen::OnSoftwareRendering(UI::EventParams &e) {
 	vtxCacheEnable_ = !g_Config.bSoftwareRendering && g_Config.bHardwareTransform;
 	postProcEnable_ = !g_Config.bSoftwareRendering && (g_Config.iRenderingMode != FB_NON_BUFFERED_MODE);
 	resolutionEnable_ = !g_Config.bSoftwareRendering && (g_Config.iRenderingMode != FB_NON_BUFFERED_MODE);
-	bezierChoiceDisable_ = g_Config.bHardwareTessellation;
+	bloomHackEnable_ = !g_Config.bSoftwareRendering && (g_Config.iInternalResolution != 1);
 	tessHWEnable_ = IsBackendSupportHWTess() && !g_Config.bSoftwareRendering && g_Config.bHardwareTransform;
 	return UI::EVENT_DONE;
 }
@@ -975,12 +963,6 @@ UI::EventReturn GameSettingsScreen::OnChangeBackground(UI::EventParams &e) {
 	return UI::EVENT_DONE;
 }
 
-UI::EventReturn GameSettingsScreen::OnReloadCheats(UI::EventParams &e) {
-	// Hmm, strange mechanism.
-	g_Config.bReloadCheats = true;
-	return UI::EVENT_DONE;
-}
-
 UI::EventReturn GameSettingsScreen::OnFullscreenChange(UI::EventParams &e) {
 	System_SendMessage("toggle_fullscreen", g_Config.bFullScreen ? "1" : "0");
 	return UI::EVENT_DONE;
@@ -995,20 +977,13 @@ UI::EventReturn GameSettingsScreen::OnResolutionChange(UI::EventParams &e) {
 	if (g_Config.iAndroidHwScale == 1) {
 		RecreateActivity();
 	}
-	bloomHackEnable_ = g_Config.iInternalResolution != 1;
+	bloomHackEnable_ = !g_Config.bSoftwareRendering && g_Config.iInternalResolution != 1;
 	Reporting::UpdateConfig();
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn GameSettingsScreen::OnHwScaleChange(UI::EventParams &e) {
 	RecreateActivity();
-	return UI::EVENT_DONE;
-}
-
-UI::EventReturn GameSettingsScreen::OnShaderChange(UI::EventParams &e) {
-	if (gpu) {
-		gpu->ClearShaderCache();
-	}
 	return UI::EVENT_DONE;
 }
 
@@ -1029,20 +1004,6 @@ void GameSettingsScreen::update() {
 	if (vertical != lastVertical_) {
 		RecreateViews();
 		lastVertical_ = vertical;
-	}
-}
-
-void GameSettingsScreen::sendMessage(const char *message, const char *value) {
-	// Always call the base class method first to handle the most common messages.
-	UIDialogScreenWithBackground::sendMessage(message, value);
-
-	if (!strcmp(message, "control mapping")) {
-		UpdateUIState(UISTATE_MENU);
-		screenManager()->push(new ControlMappingScreen());
-	}
-	if (!strcmp(message, "display layout editor")) {
-		UpdateUIState(UISTATE_MENU);
-		screenManager()->push(new DisplayLayoutScreen());
 	}
 }
 
@@ -1067,14 +1028,6 @@ void GameSettingsScreen::onFinish(DialogResult result) {
 	NativeMessageReceived("gpu_resized", "");
 	NativeMessageReceived("gpu_clearCache", "");
 }
-
-/*
-void GlobalSettingsScreen::CreateViews() {
-	using namespace UI;
-	root_ = new ScrollView(ORIENT_VERTICAL);
-
-	enableReports_ = Reporting::IsEnabled();
-}*/
 
 void GameSettingsScreen::CallbackRenderingBackend(bool yes) {
 	// If the user ends up deciding not to restart, set the config back to the current backend
@@ -1266,14 +1219,7 @@ void DeveloperToolsScreen::CreateViews() {
 	Choice *cpuTests = new Choice(dev->T("Run CPU Tests"));
 	list->Add(cpuTests)->OnClick.Handle(this, &DeveloperToolsScreen::OnRunCPUTests);
 
-#ifdef IOS
-	const std::string testDirectory = g_Config.flash0Directory + "../";
-#else
-	const std::string testDirectory = g_Config.memStickDirectory;
-#endif
-	if (!File::Exists(testDirectory + "pspautotests/tests/")) {
-		cpuTests->SetEnabled(false);
-	}
+	cpuTests->SetEnabled(TestsAvailable());
 #endif
 
 	list->Add(new CheckBox(&g_Config.bEnableLogging, dev->T("Enable Logging")))->OnClick.Handle(this, &DeveloperToolsScreen::OnLoggingChanged);

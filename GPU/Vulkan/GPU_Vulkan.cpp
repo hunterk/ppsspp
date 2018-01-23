@@ -60,8 +60,6 @@ static const VulkanCommandTableEntry commandTable[] = {
 	// Changes that dirty the current texture.
 	{ GE_CMD_TEXSIZE0, FLAG_FLUSHBEFOREONCHANGE | FLAG_EXECUTE, 0, &GPUCommon::Execute_TexSize0 },
 
-	{ GE_CMD_STENCILTEST, FLAG_FLUSHBEFOREONCHANGE, DIRTY_STENCILREPLACEVALUE | DIRTY_BLEND_STATE | DIRTY_DEPTHSTENCIL_STATE },
-
 	// Changing the vertex type requires us to flush.
 	{ GE_CMD_VERTEXTYPE, FLAG_FLUSHBEFOREONCHANGE | FLAG_EXECUTEONCHANGE, 0, &GPUCommon::Execute_VertexType },
 
@@ -168,6 +166,7 @@ GPU_Vulkan::~GPU_Vulkan() {
 	framebufferManagerVulkan_->DestroyAllFBOs();
 	vulkan2D_.Shutdown();
 	depalShaderCache_.Clear();
+	drawEngine_.DeviceLost();
 	delete textureCacheVulkan_;
 	delete pipelineManager_;
 	delete shaderManagerVulkan_;
@@ -177,9 +176,22 @@ GPU_Vulkan::~GPU_Vulkan() {
 void GPU_Vulkan::CheckGPUFeatures() {
 	uint32_t features = 0;
 
-	// Accurate depth is required on AMD so we ignore the compat flag to disable it on those. See #9545
-	if (!PSP_CoreParameter().compat.flags().DisableAccurateDepth || vulkan_->GetPhysicalDeviceProperties().vendorID == VULKAN_VENDOR_AMD) {
+	switch (vulkan_->GetPhysicalDeviceProperties().vendorID) {
+	case VULKAN_VENDOR_AMD:
+		// Accurate depth is required on AMD (due to reverse-Z driver bug) so we ignore the compat flag to disable it on those. See #9545
 		features |= GPU_SUPPORTS_ACCURATE_DEPTH;
+		break;
+	case VULKAN_VENDOR_ARM:
+		// Also required on older ARM Mali drivers, like the one on many Galaxy S7.
+		if (!PSP_CoreParameter().compat.flags().DisableAccurateDepth ||
+			  vulkan_->GetPhysicalDeviceProperties().driverVersion <= VK_MAKE_VERSION(428, 811, 2674)) {
+			features |= GPU_SUPPORTS_ACCURATE_DEPTH;
+		}
+		break;
+	default:
+		if (!PSP_CoreParameter().compat.flags().DisableAccurateDepth)
+			features |= GPU_SUPPORTS_ACCURATE_DEPTH;
+		break;
 	}
 
 	// Mandatory features on Vulkan, which may be checked in "centralized" code
@@ -197,13 +209,13 @@ void GPU_Vulkan::CheckGPUFeatures() {
 	if (vulkan_->GetFeaturesEnabled().wideLines) {
 		features |= GPU_SUPPORTS_WIDE_LINES;
 	}
+	if (vulkan_->GetFeaturesEnabled().depthClamp) {
+		features |= GPU_SUPPORTS_DEPTH_CLAMP;
+	}
 	if (vulkan_->GetFeaturesEnabled().dualSrcBlend) {
 		switch (vulkan_->GetPhysicalDeviceProperties().vendorID) {
-		case VULKAN_VENDOR_NVIDIA:
-			// Workaround for Shield TV driver bug.
-			if (strcmp(vulkan_->GetPhysicalDeviceProperties().deviceName, "NVIDIA Tegra X1") != 0)
-				features |= GPU_SUPPORTS_DUALSOURCE_BLEND;
-			break;
+		// We thought we had a bug here on nVidia but turns out we accidentally #ifdef-ed out crucial
+		// code on Android.
 		case VULKAN_VENDOR_INTEL:
 			// Workaround for Intel driver bug.
 			break;
@@ -638,10 +650,12 @@ void GPU_Vulkan::DeviceRestore() {
 
 void GPU_Vulkan::GetStats(char *buffer, size_t bufsize) {
 	const DrawEngineVulkanStats &drawStats = drawEngine_.GetStats();
+	char texStats[256];
+	textureCacheVulkan_->GetStats(texStats, sizeof(texStats));
 	float vertexAverageCycles = gpuStats.numVertsSubmitted > 0 ? (float)gpuStats.vertexGPUCycles / (float)gpuStats.numVertsSubmitted : 0.0f;
 	snprintf(buffer, bufsize - 1,
 		"DL processing time: %0.2f ms\n"
-		"Draw calls: %i, flushes %i\n"
+		"Draw calls: %i, flushes %i, clears %i\n"
 		"Cached Draw calls: %i\n"
 		"Num Tracked Vertex Arrays: %i\n"
 		"GPU cycles executed: %d (%f per vertex)\n"
@@ -650,12 +664,14 @@ void GPU_Vulkan::GetStats(char *buffer, size_t bufsize) {
 		"Cached, Uncached Vertices Drawn: %i, %i\n"
 		"FBOs active: %i\n"
 		"Textures active: %i, decoded: %i  invalidated: %i\n"
-		"Readbacks: %d\n"
+		"Readbacks: %d, uploads: %d\n"
 		"Vertex, Fragment, Pipelines loaded: %i, %i, %i\n"
-		"Pushbuffer space used: UBO %d, Vtx %d, Idx %d\n",
+		"Pushbuffer space used: UBO %d, Vtx %d, Idx %d\n"
+		"%s\n",
 		gpuStats.msProcessingDisplayLists * 1000.0f,
 		gpuStats.numDrawCalls,
 		gpuStats.numFlushes,
+		gpuStats.numClears,
 		gpuStats.numCachedDrawCalls,
 		gpuStats.numTrackedVertexArrays,
 		gpuStats.vertexGPUCycles + gpuStats.otherGPUCycles,
@@ -669,12 +685,14 @@ void GPU_Vulkan::GetStats(char *buffer, size_t bufsize) {
 		gpuStats.numTexturesDecoded,
 		gpuStats.numTextureInvalidations,
 		gpuStats.numReadbacks,
+		gpuStats.numUploads,
 		shaderManagerVulkan_->GetNumVertexShaders(),
 		shaderManagerVulkan_->GetNumFragmentShaders(),
 		pipelineManager_->GetNumPipelines(),
 		drawStats.pushUBOSpaceUsed,
 		drawStats.pushVertexSpaceUsed,
-		drawStats.pushIndexSpaceUsed
+		drawStats.pushIndexSpaceUsed,
+		texStats
 	);
 }
 
@@ -709,8 +727,12 @@ std::vector<std::string> GPU_Vulkan::DebugGetShaderIDs(DebugShaderType type) {
 	} else if (type == SHADER_TYPE_DEPAL) {
 		///...
 		return std::vector<std::string>();
-	} else {
+	} else if (type == SHADER_TYPE_VERTEX || type == SHADER_TYPE_FRAGMENT) {
 		return shaderManagerVulkan_->DebugGetShaderIDs(type);
+	} else if (type == SHADER_TYPE_SAMPLER) {
+		return textureCacheVulkan_->DebugGetSamplerIDs();
+	} else {
+		return std::vector<std::string>();
 	}
 }
 
@@ -721,7 +743,11 @@ std::string GPU_Vulkan::DebugGetShaderString(std::string id, DebugShaderType typ
 		return pipelineManager_->DebugGetObjectString(id, type, stringType);
 	} else if (type == SHADER_TYPE_DEPAL) {
 		return "";
-	} else {
+	} else if (type == SHADER_TYPE_SAMPLER) {
+		return textureCacheVulkan_->DebugGetSamplerString(id, stringType);
+	} else if (type == SHADER_TYPE_VERTEX || type == SHADER_TYPE_FRAGMENT) {
 		return shaderManagerVulkan_->DebugGetShaderString(id, type, stringType);
+	} else {
+		return std::string();
 	}
 }

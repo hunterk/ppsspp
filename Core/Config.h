@@ -57,12 +57,6 @@ enum class GPUBackend {
 	DIRECT3D11 = 2,
 	VULKAN = 3,
 };
-enum {
-	GPU_BACKEND_OPENGL = (int)GPUBackend::OPENGL,
-	GPU_BACKEND_DIRECT3D9 = (int)GPUBackend::DIRECT3D9,
-	GPU_BACKEND_DIRECT3D11 = (int)GPUBackend::DIRECT3D11,
-	GPU_BACKEND_VULKAN = (int)GPUBackend::VULKAN,
-};
 
 enum AudioBackendType {
 	AUDIO_BACKEND_AUTO,
@@ -132,6 +126,7 @@ public:
 	bool bForceLagSync;
 	bool bFuncReplacements;
 	bool bHideSlowWarnings;
+	bool bPreloadFunctions;
 
 	bool bSeparateSASThread;
 	bool bSeparateIOThread;
@@ -143,6 +138,7 @@ public:
 	std::string sLastRemoteISOServer;
 	int iLastRemoteISOPort;
 	bool bRemoteISOManual;
+	bool bRemoteShareOnStartup;
 	std::string sRemoteISOSubdir;
 	bool bMemStickInserted;
 
@@ -160,7 +156,7 @@ public:
 	bool bHardwareTransform; // only used in the GLES backend
 	bool bSoftwareSkinning;  // may speed up some games
 
-	int iRenderingMode; // 0 = non-buffered rendering 1 = buffered rendering 2 = Read Framebuffer to memory (CPU) 3 = Read Framebuffer to memory (GPU)
+	int iRenderingMode; // 0 = non-buffered rendering 1 = buffered rendering
 	int iTexFiltering; // 1 = off , 2 = nearest , 3 = linear , 4 = linear(CG)
 	int iBufFilter; // 1 = linear, 2 = nearest
 	int iSmallDisplayZoomType;  // Used to fit display into screen 0 = stretch, 1 = partial stretch, 2 = auto scaling, 3 = manual scaling.

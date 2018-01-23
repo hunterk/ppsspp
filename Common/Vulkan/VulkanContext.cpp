@@ -6,9 +6,11 @@
 #include <iostream>
 
 #include "base/basictypes.h"
+#include "base/display.h"
 #include "VulkanContext.h"
 #include "GPU/Common/ShaderCommon.h"
 #include "Common/StringUtils.h"
+#include "Core/Config.h"
 
 // Change this to 1, 2, and 3 to fake failures in a few places, so that
 // we can test our fallback-to-GL code.
@@ -95,13 +97,13 @@ VulkanContext::VulkanContext() {
 	GetInstanceLayerExtensionList(nullptr, instance_extension_properties_);
 }
 
-VkResult VulkanContext::CreateInstance(const char *app_name, int app_ver, uint32_t flags) {
+VkResult VulkanContext::CreateInstance(const CreateInfo &info) {
 	if (!vkCreateInstance) {
 		init_error_ = "Vulkan not loaded - can't create instance";
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 
-	flags_ = flags;
+	flags_ = info.flags;
 
 	// List extensions to try to enable.
 	instance_extensions_enabled_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
@@ -109,25 +111,53 @@ VkResult VulkanContext::CreateInstance(const char *app_name, int app_ver, uint32
 	instance_extensions_enabled_.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(__ANDROID__)
 	instance_extensions_enabled_.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#else
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+	if (IsInstanceExtensionAvailable(VK_KHR_XLIB_SURFACE_EXTENSION_NAME)) {
+		instance_extensions_enabled_.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+	}
+#endif
+//#if defined(VK_USE_PLATFORM_XCB_KHR)
+//	instance_extensions_enabled_.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+//#endif
+//#if defined(VK_USE_PLATFORM_MIR_KHR)
+//	instance_extensions_enabled_.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
+//#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	if (IsInstanceExtensionAvailable(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)) {
+		instance_extensions_enabled_.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+	}
+#endif
 #endif
 
 	if (flags_ & VULKAN_FLAG_VALIDATE) {
-		for (size_t i = 0; i < ARRAY_SIZE(validationLayers); i++) {
-			instance_layer_names_.push_back(validationLayers[i]);
-			device_layer_names_.push_back(validationLayers[i]);
+		if (IsInstanceExtensionAvailable(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)) {
+			for (size_t i = 0; i < ARRAY_SIZE(validationLayers); i++) {
+				instance_layer_names_.push_back(validationLayers[i]);
+				device_layer_names_.push_back(validationLayers[i]);
+			}
+			instance_extensions_enabled_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		} else {
+			ELOG("Validation layer extension not available - not enabling Vulkan validation.");
+			flags_ &= ~VULKAN_FLAG_VALIDATE;
 		}
-		instance_extensions_enabled_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	}
 
-	VkApplicationInfo app_info { VK_STRUCTURE_TYPE_APPLICATION_INFO };
-	app_info.pApplicationName = app_name;
-	app_info.applicationVersion = app_ver;
-	app_info.pEngineName = app_name;
+	// Validate that all the instance extensions we ask for are actually available.
+	for (auto ext : instance_extensions_enabled_) {
+		if (!IsInstanceExtensionAvailable(ext))
+			WLOG("WARNING: Does not seem that instance extension '%s' is available. Trying to proceed anyway.", ext);
+	}
+
+	VkApplicationInfo app_info{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
+	app_info.pApplicationName = info.app_name;
+	app_info.applicationVersion = info.app_ver;
+	app_info.pEngineName = info.app_name;
 	// Let's increment this when we make major engine/context changes.
 	app_info.engineVersion = 2;
 	app_info.apiVersion = VK_API_VERSION_1_0;
 
-	VkInstanceCreateInfo inst_info { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+	VkInstanceCreateInfo inst_info{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	inst_info.flags = 0;
 	inst_info.pApplicationInfo = &app_info;
 	inst_info.enabledLayerCount = (uint32_t)instance_layer_names_.size();
@@ -424,6 +454,7 @@ int VulkanContext::GetBestPhysicalDevice() {
 
 void VulkanContext::ChooseDevice(int physical_device) {
 	physical_device_ = physical_device;
+	ILOG("Chose physical device %d: %p", physical_device, physical_devices_[physical_device]);
 
 	GetDeviceLayerProperties();
 	if (!CheckLayers(device_layer_properties_, device_layer_names_)) {
@@ -530,6 +561,8 @@ VkResult VulkanContext::CreateDevice() {
 	}
 	assert(found);
 
+	deviceExtensionsLookup_.DEDICATED_ALLOCATION = EnableDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
+
 	VkDeviceCreateInfo device_info { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	device_info.queueCreateInfoCount = 1;
 	device_info.pQueueCreateInfos = &queue_info;
@@ -545,6 +578,7 @@ VkResult VulkanContext::CreateDevice() {
 	} else {
 		VulkanLoadDeviceFunctions(device_);
 	}
+	ILOG("Device created.\n");
 	return res;
 }
 
@@ -563,7 +597,7 @@ VkResult VulkanContext::InitDebugMsgCallback(PFN_vkDebugReportCallbackEXT dbgFun
 	cb.flags = bits;
 	cb.pfnCallback = dbgFunc;
 	cb.pUserData = userdata;
-	VkResult res = vkCreateDebugReportCallbackEXT(instance_, &cb, nullptr, &msg_callback);
+	VkResult res = dyn_vkCreateDebugReportCallbackEXT(instance_, &cb, nullptr, &msg_callback);
 	switch (res) {
 	case VK_SUCCESS:
 		msg_callbacks.push_back(msg_callback);
@@ -578,70 +612,103 @@ VkResult VulkanContext::InitDebugMsgCallback(PFN_vkDebugReportCallbackEXT dbgFun
 
 void VulkanContext::DestroyDebugMsgCallback() {
 	while (msg_callbacks.size() > 0) {
-		vkDestroyDebugReportCallbackEXT(instance_, msg_callbacks.back(), nullptr);
+		dyn_vkDestroyDebugReportCallbackEXT(instance_, msg_callbacks.back(), nullptr);
 		msg_callbacks.pop_back();
 	}
 }
 
+void VulkanContext::InitSurface(WindowSystem winsys, void *data1, void *data2, int width, int height) {
+	winsys_ = winsys;
+	winsysData1_ = data1;
+	winsysData2_ = data2;
+	ReinitSurface(width, height);
+}
+
+void VulkanContext::ReinitSurface(int width, int height) {
+	if (surface_ != VK_NULL_HANDLE) {
+		ILOG("Destroying Vulkan surface (%d, %d)", width_, height_);
+		vkDestroySurfaceKHR(instance_, surface_, nullptr);
+		surface_ = VK_NULL_HANDLE;
+	}
+
+	ILOG("Creating Vulkan surface (%d, %d)", width, height);
+	switch (winsys_) {
 #ifdef _WIN32
-void VulkanContext::InitSurfaceWin32(HINSTANCE conn, HWND wnd) {
-	connection = conn;
-	window = wnd;
+	case WINDOWSYSTEM_WIN32:
+	{
+		HINSTANCE connection = (HINSTANCE)winsysData1_;
+		HWND window = (HWND)winsysData2_;
 
-	ReinitSurfaceWin32();
-}
+		RECT rc;
+		GetClientRect(window, &rc);
+		width = rc.right - rc.left;
+		height = rc.bottom - rc.top;
 
-void VulkanContext::ReinitSurfaceWin32() {
-	if (surface_ != VK_NULL_HANDLE) {
-		vkDestroySurfaceKHR(instance_, surface_, nullptr);
-		surface_ = VK_NULL_HANDLE;
+		VkWin32SurfaceCreateInfoKHR win32{ VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+		win32.flags = 0;
+		win32.hwnd = window;
+		win32.hinstance = connection;
+		VkResult res = vkCreateWin32SurfaceKHR(instance_, &win32, nullptr, &surface_);
+		assert(res == VK_SUCCESS);
+		break;
 	}
-
-	RECT rc;
-	GetClientRect(window, &rc);
-	width_ = rc.right - rc.left;
-	height_ = rc.bottom - rc.top;
-
-	VkResult U_ASSERT_ONLY res;
-
-	VkWin32SurfaceCreateInfoKHR win32 = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-	win32.flags = 0;
-	win32.hwnd = window;
-	win32.hinstance = connection;
-	res = vkCreateWin32SurfaceKHR(instance_, &win32, nullptr, &surface_);
-
-	assert(res == VK_SUCCESS);
-}
-
-#elif defined(__ANDROID__)
-
-void VulkanContext::InitSurfaceAndroid(ANativeWindow *wnd, int width, int height) {
-	native_window = wnd;
-
-	ReinitSurfaceAndroid(width, height);
-}
-
-void VulkanContext::ReinitSurfaceAndroid(int width, int height) {
-	if (surface_ != VK_NULL_HANDLE) {
-		ILOG("Destroying Android Vulkan surface (%d, %d)", width_, height_);
-		vkDestroySurfaceKHR(instance_, surface_, nullptr);
-		surface_ = VK_NULL_HANDLE;
+#endif
+#if defined(__ANDROID__)
+	case WINDOWSYSTEM_ANDROID:
+	{
+		ANativeWindow *wnd = (ANativeWindow *)winsysData1_;
+		VkAndroidSurfaceCreateInfoKHR android{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
+		android.flags = 0;
+		android.window = wnd;
+		VkResult res = vkCreateAndroidSurfaceKHR(instance_, &android, nullptr, &surface_);
+		assert(res == VK_SUCCESS);
+		break;
 	}
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+	case WINDOWSYSTEM_XLIB:
+	{
+		VkXlibSurfaceCreateInfoKHR xlib = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
+		xlib.flags = 0;
+		xlib.dpy = (Display *)winsysData1_;
+		xlib.window = (Window)winsysData2_;
+		VkResult res = vkCreateXlibSurfaceKHR(instance_, &xlib, nullptr, &surface_);
+		assert(res == VK_SUCCESS);
+		break;
+	}
+#endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+	case WINDOWSYSTEM_XCB:
+	{
+		VkXCBSurfaceCreateInfoKHR xcb = { VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR };
+		xcb.flags = 0;
+		xcb.connection = (Connection *)winsysData1_;
+		xcb.window = (Window)(uintptr_t)winsysData2_;
+		VkResult res = vkCreateXcbSurfaceKHR(instance_, &xcb, nullptr, &surface_);
+		assert(res == VK_SUCCESS);
+		break;
+	}
+#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	case WINDOWSYSTEM_WAYLAND:
+	{
+		VkWaylandSurfaceCreateInfoKHR wayland = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR };
+		wayland.flags = 0;
+		wayland.display = (wl_display *)winsysData1_;
+		wayland.surface = (wl_surface *)winsysData2_;
+		VkResult res = vkCreateWaylandSurfaceKHR(instance_, &wayland, nullptr, &surface_);
+		assert(res == VK_SUCCESS);
+		break;
+	}
+#endif
 
-	VkResult U_ASSERT_ONLY res;
-
-	ILOG("Creating Android Vulkan surface (%d, %d)", width, height);
-
-	VkAndroidSurfaceCreateInfoKHR android = { VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
-	android.flags = 0;
-	android.window = native_window;
-	res = vkCreateAndroidSurfaceKHR(instance_, &android, nullptr, &surface_);
-	assert(res == VK_SUCCESS);
-
+	default:
+		_assert_msg_(G3D, false, "Vulkan support for chosen window system not implemented");
+		break;
+	}
 	width_ = width;
 	height_ = height;
 }
-#endif
 
 bool VulkanContext::InitQueue() {
 	// Iterate over each queue to learn whether it supports presenting:
@@ -688,16 +755,17 @@ bool VulkanContext::InitQueue() {
 	graphics_queue_family_index_ = graphicsQueueNodeIndex;
 
 	// Get the list of VkFormats that are supported:
-	uint32_t formatCount;
+	uint32_t formatCount = 0;
 	VkResult res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, nullptr);
-	assert(res == VK_SUCCESS);
-	if (res != VK_SUCCESS)
+	_assert_msg_(G3D, res == VK_SUCCESS, "Failed to get formats for device %p: %d surface: %p", physical_devices_[physical_device_], (int)res, surface_);
+	if (res != VK_SUCCESS) {
 		return false;
-	VkSurfaceFormatKHR *surfFormats = new VkSurfaceFormatKHR[formatCount];
-	res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, surfFormats);
+	}
+
+	std::vector<VkSurfaceFormatKHR> surfFormats(formatCount);
+	res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, surfFormats.data());
 	assert(res == VK_SUCCESS);
 	if (res != VK_SUCCESS) {
-		delete[] surfFormats;
 		return false;
 	}
 	// If the format list includes just one entry of VK_FORMAT_UNDEFINED,
@@ -724,7 +792,6 @@ bool VulkanContext::InitQueue() {
 		}
 		ILOG("swapchain_format: %d (/%d)", swapchainFormat_, formatCount);
 	}
-	delete[] surfFormats;
 
 	vkGetDeviceQueue(device_, graphics_queue_family_index_, 0, &gfx_queue_);
 	ILOG("gfx_queue_: %p", gfx_queue_);
@@ -732,11 +799,8 @@ bool VulkanContext::InitQueue() {
 }
 
 bool VulkanContext::InitSwapchain() {
-	VkResult U_ASSERT_ONLY res;
-
-	res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices_[physical_device_], surface_, &surfCapabilities_);
+	VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices_[physical_device_], surface_, &surfCapabilities_);
 	assert(res == VK_SUCCESS);
-
 	uint32_t presentModeCount;
 	res = vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices_[physical_device_], surface_, &presentModeCount, nullptr);
 	assert(res == VK_SUCCESS);
@@ -894,11 +958,10 @@ bool VulkanContext::CreateShaderModule(const std::vector<uint32_t> &spirv, VkSha
 	}
 }
 
-void TransitionImageLayout2(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask,
+void TransitionImageLayout2(VkCommandBuffer cmd, VkImage image, int baseMip, int numMipLevels, VkImageAspectFlags aspectMask,
 	VkImageLayout oldImageLayout, VkImageLayout newImageLayout,
 	VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
-	VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-	int numMipLevels) {
+	VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
 	VkImageMemoryBarrier image_memory_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
 	image_memory_barrier.srcAccessMask = srcAccessMask;
 	image_memory_barrier.dstAccessMask = dstAccessMask;
@@ -906,7 +969,7 @@ void TransitionImageLayout2(VkCommandBuffer cmd, VkImage image, VkImageAspectFla
 	image_memory_barrier.newLayout = newImageLayout;
 	image_memory_barrier.image = image;
 	image_memory_barrier.subresourceRange.aspectMask = aspectMask;
-	image_memory_barrier.subresourceRange.baseMipLevel = 0;
+	image_memory_barrier.subresourceRange.baseMipLevel = baseMip;
 	image_memory_barrier.subresourceRange.levelCount = numMipLevels;
 	image_memory_barrier.subresourceRange.layerCount = 1;  // We never use more than one layer, and old Mali drivers have problems with VK_REMAINING_ARRAY_LAYERS/VK_REMAINING_MIP_LEVELS.
 	image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1019,7 +1082,7 @@ const char *VulkanResultToString(VkResult res) {
 	case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
 	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
 	case VK_ERROR_OUT_OF_POOL_MEMORY_KHR: return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
-	case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX: return "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX";
+	case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR: return "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR";
 
 	default:
 		return "VK_ERROR_...(unknown)";
@@ -1040,6 +1103,8 @@ void VulkanDeleteList::Take(VulkanDeleteList &del) {
 	assert(pipelineCaches_.size() == 0);
 	assert(renderPasses_.size() == 0);
 	assert(framebuffers_.size() == 0);
+	assert(pipelineLayouts_.size() == 0);
+	assert(descSetLayouts_.size() == 0);
 	assert(callbacks_.size() == 0);
 	cmdPools_ = std::move(del.cmdPools_);
 	descPools_ = std::move(del.descPools_);
@@ -1057,6 +1122,21 @@ void VulkanDeleteList::Take(VulkanDeleteList &del) {
 	pipelineLayouts_ = std::move(del.pipelineLayouts_);
 	descSetLayouts_ = std::move(del.descSetLayouts_);
 	callbacks_ = std::move(del.callbacks_);
+	del.cmdPools_.clear();
+	del.descPools_.clear();
+	del.modules_.clear();
+	del.buffers_.clear();
+	del.images_.clear();
+	del.imageViews_.clear();
+	del.deviceMemory_.clear();
+	del.samplers_.clear();
+	del.pipelines_.clear();
+	del.pipelineCaches_.clear();
+	del.renderPasses_.clear();
+	del.framebuffers_.clear();
+	del.pipelineLayouts_.clear();
+	del.descSetLayouts_.clear();
+	del.callbacks_.clear();
 }
 
 void VulkanDeleteList::PerformDeletes(VkDevice device) {

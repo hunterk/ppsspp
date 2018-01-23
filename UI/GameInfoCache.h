@@ -19,6 +19,7 @@
 
 #include <string>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <atomic>
 
@@ -93,7 +94,7 @@ public:
 	bool DeleteAllSaveData();
 	bool LoadFromPath(const std::string &gamePath);
 
-	FileLoader *GetFileLoader();
+	std::shared_ptr<FileLoader> GetFileLoader();
 	void DisposeFileLoader();
 
 	u64 GetGameSizeInBytes();
@@ -106,9 +107,6 @@ public:
 
 	std::string GetTitle();
 	void SetTitle(const std::string &newTitle);
-
-	bool IsPending();
-	bool IsWorking();
 
 	// Hold this when reading or writing from the GameInfo.
 	// Don't need to hold it when just passing around the pointer,
@@ -141,14 +139,14 @@ public:
 	u64 gameSize = 0;
 	u64 saveDataSize = 0;
 	u64 installDataSize = 0;
-	bool pending = true;
-	bool working = false;
+	std::atomic<bool> pending{};
+	std::atomic<bool> working{};
 
 protected:
 	// Note: this can change while loading, use GetTitle().
 	std::string title;
 
-	FileLoader *fileLoader = nullptr;
+	std::shared_ptr<FileLoader> fileLoader;
 	std::string filePath_;
 
 private:
@@ -173,6 +171,7 @@ public:
 
 	PrioritizedWorkQueue *WorkQueue() { return gameInfoWQ_; }
 
+	void CancelAll();
 	void WaitUntilDone(std::shared_ptr<GameInfo> &info);
 
 private:

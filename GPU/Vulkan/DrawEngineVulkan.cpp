@@ -296,7 +296,7 @@ void DrawEngineVulkan::BeginFrame() {
 	if (!nullTexture_) {
 		ILOG("INIT : Creating null texture");
 		VkCommandBuffer cmdInit = (VkCommandBuffer)draw_->GetNativeObject(Draw::NativeObject::INIT_COMMANDBUFFER);
-		nullTexture_ = new VulkanTexture(vulkan_);
+		nullTexture_ = new VulkanTexture(vulkan_, textureCache_->GetAllocator());
 		int w = 8;
 		int h = 8;
 		nullTexture_->CreateDirect(cmdInit, w, h, 1, VK_FORMAT_A8B8G8R8_UNORM_PACK32, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -354,6 +354,7 @@ void DrawEngineVulkan::BeginFrame() {
 			}
 		});
 	}
+	vai_.Maintain();
 }
 
 void DrawEngineVulkan::EndFrame() {
@@ -618,11 +619,6 @@ void DrawEngineVulkan::DoFlush() {
 		textureCache_->SetTexture();
 		gstate_c.Clean(DIRTY_TEXTURE_IMAGE | DIRTY_TEXTURE_PARAMS);
 		textureNeedsApply = true;
-		if (gstate_c.needShaderTexClamp) {
-			// We will rarely need to set this, so let's do it every time on use rather than in runloop.
-			// Most of the time non-framebuffer textures will be used which can be clamped themselves.
-			gstate_c.Dirty(DIRTY_TEXCLAMP);
-		}
 	}
 
 	GEPrimitiveType prim = prevPrim_;

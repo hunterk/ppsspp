@@ -109,6 +109,20 @@ VkSampler SamplerCache::GetOrCreateSampler(const SamplerCacheKey &key) {
 	return sampler;
 }
 
+std::string SamplerCache::DebugGetSamplerString(std::string id, DebugShaderStringType stringType) {
+	SamplerCacheKey key;
+	key.FromString(id);
+	return StringFromFormat("%s/%s mag:%s min:%s mip:%s maxLod:%f minLod:%f bias:%f",
+		key.sClamp ? "Clamp" : "Wrap",
+		key.tClamp ? "Clamp" : "Wrap",
+		key.magFilt ? "Linear" : "Nearest",
+		key.minFilt ? "Linear" : "Nearest",
+		key.mipFilt ? "Linear" : "Nearest",
+		key.maxLevel / 256.0f,
+		key.minLevel / 256.0f,
+		key.lodBias / 256.0f);
+}
+
 void SamplerCache::DeviceLost() {
 	cache_.Iterate([&](const SamplerCacheKey &key, VkSampler sampler) {
 		vulkan_->Delete().QueueDeleteSampler(sampler);
@@ -118,6 +132,16 @@ void SamplerCache::DeviceLost() {
 
 void SamplerCache::DeviceRestore(VulkanContext *vulkan) {
 	vulkan_ = vulkan;
+}
+
+std::vector<std::string> SamplerCache::DebugGetSamplerIDs() const {
+	std::vector<std::string> ids;
+	cache_.Iterate([&](const SamplerCacheKey &id, VkSampler sampler) {
+		std::string idstr;
+		id.ToString(&idstr);
+		ids.push_back(idstr);
+	});
+	return ids;
 }
 
 TextureCacheVulkan::TextureCacheVulkan(Draw::DrawContext *draw, VulkanContext *vulkan)
@@ -322,7 +346,7 @@ void TextureCacheVulkan::ApplyTextureFramebuffer(TexCacheEntry *entry, VirtualFr
 
 		Draw::Framebuffer *depalFBO = framebufferManager_->GetTempFBO(
 			framebuffer->renderWidth, framebuffer->renderHeight, Draw::FBO_8888);
-		draw_->BindFramebufferAsRenderTarget(depalFBO, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
+		draw_->BindFramebufferAsRenderTarget(depalFBO, { Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE });
 
 		Vulkan2D::Vertex verts[4] = {
 			{ -1, -1, 0.0f, 0, 0 },
@@ -390,7 +414,7 @@ void TextureCacheVulkan::ApplyTextureFramebuffer(TexCacheEntry *entry, VirtualFr
 		const u32 bytesPerColor = clutFormat == GE_CMODE_32BIT_ABGR8888 ? sizeof(u32) : sizeof(u16);
 		const u32 clutTotalColors = clutMaxBytes_ / bytesPerColor;
 
-		TexCacheEntry::Status alphaStatus = CheckAlpha(clutBuf_, getClutDestFormatVulkan(clutFormat), clutTotalColors, clutTotalColors, 1);
+		TexCacheEntry::TexStatus alphaStatus = CheckAlpha(clutBuf_, getClutDestFormatVulkan(clutFormat), clutTotalColors, clutTotalColors, 1);
 		gstate_c.SetTextureFullAlpha(alphaStatus == TexCacheEntry::STATUS_ALPHA_FULL);
 
 		framebufferManager_->RebindFramebuffer();
@@ -589,6 +613,7 @@ void TextureCacheVulkan::BuildTexture(TexCacheEntry *const entry, bool replaceIm
 		}
 
 		if (!allocSuccess) {
+			ERROR_LOG(G3D, "Failed to create texture (%dx%d)", w, h);
 			delete entry->vkTex;
 			entry->vkTex = nullptr;
 		}
@@ -648,11 +673,10 @@ void TextureCacheVulkan::BuildTexture(TexCacheEntry *const entry, bool replaceIm
 			entry->status &= ~TexCacheEntry::STATUS_BAD_MIPS;
 		}
 		if (replaced.Valid()) {
-			entry->SetAlphaStatus(TexCacheEntry::Status(replaced.AlphaStatus()));
+			entry->SetAlphaStatus(TexCacheEntry::TexStatus(replaced.AlphaStatus()));
 		}
+		entry->vkTex->texture_->EndCreate(cmdInit);
 	}
-
-	entry->vkTex->texture_->EndCreate(cmdInit);
 
 	gstate_c.SetTextureFullAlpha(entry->GetAlphaStatus() == TexCacheEntry::STATUS_ALPHA_FULL);
 }
@@ -679,7 +703,7 @@ VkFormat TextureCacheVulkan::GetDestFormat(GETextureFormat format, GEPaletteForm
 	}
 }
 
-TexCacheEntry::Status TextureCacheVulkan::CheckAlpha(const u32 *pixelData, VkFormat dstFmt, int stride, int w, int h) {
+TexCacheEntry::TexStatus TextureCacheVulkan::CheckAlpha(const u32 *pixelData, VkFormat dstFmt, int stride, int w, int h) {
 	CheckAlphaResult res;
 	switch (dstFmt) {
 	case VULKAN_4444_FORMAT:
@@ -697,7 +721,7 @@ TexCacheEntry::Status TextureCacheVulkan::CheckAlpha(const u32 *pixelData, VkFor
 		break;
 	}
 
-	return (TexCacheEntry::Status)res;
+	return (TexCacheEntry::TexStatus)res;
 }
 
 void TextureCacheVulkan::LoadTextureLevel(TexCacheEntry &entry, uint8_t *writePtr, int rowPitch, int level, int scaleFactor, VkFormat dstFmt) {
@@ -730,7 +754,7 @@ void TextureCacheVulkan::LoadTextureLevel(TexCacheEntry &entry, uint8_t *writePt
 		if ((entry.status & TexCacheEntry::STATUS_CHANGE_FREQUENT) == 0) {
 			// TODO: When we decode directly, this can be more expensive (maybe not on mobile?)
 			// This does allow us to skip alpha testing, though.
-			TexCacheEntry::Status alphaStatus = CheckAlpha(pixelData, dstFmt, decPitch / bpp, w, h);
+			TexCacheEntry::TexStatus alphaStatus = CheckAlpha(pixelData, dstFmt, decPitch / bpp, w, h);
 			entry.SetAlphaStatus(alphaStatus, level);
 		} else {
 			entry.SetAlphaStatus(TexCacheEntry::STATUS_ALPHA_UNKNOWN);
@@ -768,7 +792,7 @@ bool TextureCacheVulkan::GetCurrentTextureDebug(GPUDebugBuffer &buffer, int leve
 	// TODO: Centralize?
 	if (nextTexture_->framebuffer) {
 		VirtualFramebuffer *vfb = nextTexture_->framebuffer;
-		bool flipY = g_Config.iGPUBackend == GPU_BACKEND_OPENGL && g_Config.iRenderingMode != FB_NON_BUFFERED_MODE;
+		bool flipY = GetGPUBackend() == GPUBackend::OPENGL && g_Config.iRenderingMode != FB_NON_BUFFERED_MODE;
 		buffer.Allocate(vfb->bufferWidth, vfb->bufferHeight, GPU_DBG_FORMAT_8888, flipY);
 		bool retval = draw_->CopyFramebufferToMemorySync(vfb->fbo, Draw::FB_COLOR_BIT, 0, 0, vfb->bufferWidth, vfb->bufferHeight, Draw::DataFormat::R8G8B8A8_UNORM, buffer.GetData(), vfb->bufferWidth);
 		// Vulkan requires us to re-apply all dynamic state for each command buffer, and the above will cause us to start a new cmdbuf.
@@ -816,6 +840,18 @@ bool TextureCacheVulkan::GetCurrentTextureDebug(GPUDebugBuffer &buffer, int leve
 	// So let's dirty the things that are involved in Vulkan dynamic state. Readbacks are not frequent so this won't hurt other backends.
 	gstate_c.Dirty(DIRTY_VIEWPORTSCISSOR_STATE | DIRTY_BLEND_STATE | DIRTY_DEPTHSTENCIL_STATE);
 	framebufferManager_->RebindFramebuffer();
-
 	return true;
+}
+
+void TextureCacheVulkan::GetStats(char *ptr, size_t size) {
+	snprintf(ptr, size, "Alloc: %d slabs\nSlab min/max: %d/%d\nAlloc usage: %d%%",
+		allocator_->GetBlockCount(), allocator_->GetMinSlabSize(), allocator_->GetMaxSlabSize(), allocator_->ComputeUsagePercent());
+}
+
+std::vector<std::string> TextureCacheVulkan::DebugGetSamplerIDs() const {
+	return samplerCache_.DebugGetSamplerIDs();
+}
+
+std::string TextureCacheVulkan::DebugGetSamplerString(std::string id, DebugShaderStringType stringType) {
+	return samplerCache_.DebugGetSamplerString(id, stringType);
 }

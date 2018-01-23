@@ -26,7 +26,7 @@
 #include "Common/CommonTypes.h"
 #include "Core/HLE/HLE.h"
 #include "Core/HLE/HLETables.h"
-#include "Core/MIPS/MIPSInt.h"
+#include "Core/MIPS/MIPSAnalyst.h"
 #include "Core/MIPS/MIPSCodeUtils.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/CoreTiming.h"
@@ -887,6 +887,7 @@ static void __KernelWriteFakeSysCall(u32 nid, u32 *ptr, u32 &pos)
 	*ptr = pos;
 	pos += 8;
 	WriteSyscall("FakeSysCalls", nid, *ptr);
+	MIPSAnalyst::PrecompileFunction(*ptr, 8);
 }
 
 void __KernelThreadingInit()
@@ -2276,6 +2277,8 @@ int sceKernelTerminateDeleteThread(int threadID)
 	if (t)
 	{
 		bool wasStopped = t->isStopped();
+		uint32_t attr = t->nt.attr;
+		uint32_t uid = t->GetUID();
 
 		INFO_LOG(SCEKERNEL, "sceKernelTerminateDeleteThread(%i)", threadID);
 		error = __KernelDeleteThread(threadID, SCE_KERNEL_ERROR_THREAD_TERMINATED, "thread terminated with delete");
@@ -2283,7 +2286,7 @@ int sceKernelTerminateDeleteThread(int threadID)
 		if (!wasStopped) {
 			// Set v0 before calling the handler, or it'll get lost.
 			RETURN(error);
-			__KernelThreadTriggerEvent((t->nt.attr & PSP_THREAD_ATTR_KERNEL) != 0, t->GetUID(), THREADEVENT_EXIT);
+			__KernelThreadTriggerEvent((attr & PSP_THREAD_ATTR_KERNEL) != 0, uid, THREADEVENT_EXIT);
 		}
 
 		return error;

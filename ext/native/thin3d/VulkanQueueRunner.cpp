@@ -7,7 +7,20 @@
 void VulkanQueueRunner::CreateDeviceObjects() {
 	ILOG("VulkanQueueRunner::CreateDeviceObjects");
 	InitBackbufferRenderPass();
-	InitRenderpasses();
+
+#if 0
+	// Just to check whether it makes sense to split some of these. drawidx is way bigger than the others...
+	// We should probably just move to variable-size data in a raw buffer anyway...
+	VkRenderData rd;
+	ILOG("sizeof(pipeline): %d", (int)sizeof(rd.pipeline));
+	ILOG("sizeof(draw): %d", (int)sizeof(rd.draw));
+	ILOG("sizeof(drawidx): %d", (int)sizeof(rd.drawIndexed));
+	ILOG("sizeof(clear): %d", (int)sizeof(rd.clear));
+	ILOG("sizeof(viewport): %d", (int)sizeof(rd.viewport));
+	ILOG("sizeof(scissor): %d", (int)sizeof(rd.scissor));
+	ILOG("sizeof(blendColor): %d", (int)sizeof(rd.blendColor));
+	ILOG("sizeof(push): %d", (int)sizeof(rd.push));
+#endif
 }
 
 void VulkanQueueRunner::ResizeReadbackBuffer(VkDeviceSize requiredSize) {
@@ -53,19 +66,18 @@ void VulkanQueueRunner::DestroyDeviceObjects() {
 	vulkan_->Delete().QueueDeleteBuffer(readbackBuffer_);
 	readbackBufferSize_ = 0;
 
-	for (int i = 0; i < ARRAY_SIZE(renderPasses_); i++) {
-		assert(renderPasses_[i] != VK_NULL_HANDLE);
-		vulkan_->Delete().QueueDeleteRenderPass(renderPasses_[i]);
-		renderPasses_[i] = VK_NULL_HANDLE;
-	}
+	renderPasses_.Iterate([&](const RPKey &rpkey, VkRenderPass rp) {
+		_assert_(rp != VK_NULL_HANDLE);
+		vulkan_->Delete().QueueDeleteRenderPass(rp);
+	});
+	renderPasses_.Clear();
+
 	assert(backbufferRenderPass_ != VK_NULL_HANDLE);
 	vulkan_->Delete().QueueDeleteRenderPass(backbufferRenderPass_);
 	backbufferRenderPass_ = VK_NULL_HANDLE;
 }
 
 void VulkanQueueRunner::InitBackbufferRenderPass() {
-	VkResult U_ASSERT_ONLY res;
-
 	VkAttachmentDescription attachments[2];
 	attachments[0].format = vulkan_->GetSwapchainFormat();
 	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -125,17 +137,32 @@ void VulkanQueueRunner::InitBackbufferRenderPass() {
 	rp_info.dependencyCount = 1;
 	rp_info.pDependencies = &dep;
 
-	res = vkCreateRenderPass(vulkan_->GetDevice(), &rp_info, nullptr, &backbufferRenderPass_);
+	VkResult res = vkCreateRenderPass(vulkan_->GetDevice(), &rp_info, nullptr, &backbufferRenderPass_);
 	assert(res == VK_SUCCESS);
 }
 
-void VulkanQueueRunner::InitRenderpasses() {
-	// Create a bunch of render pass objects, for normal rendering with a depth buffer,
-	// with clearing, without clearing, and dont-care for both depth/stencil and color, so 3*3=9 combos.
+VkRenderPass VulkanQueueRunner::GetRenderPass(VKRRenderPassAction colorLoadAction, VKRRenderPassAction depthLoadAction, VKRRenderPassAction stencilLoadAction) {
+	RPKey key{ colorLoadAction, depthLoadAction, stencilLoadAction };
+	auto pass = renderPasses_.Get(key);
+	if (pass) {
+		return pass;
+	}
+
 	VkAttachmentDescription attachments[2] = {};
 	attachments[0].format = VK_FORMAT_R8G8B8A8_UNORM;
 	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	switch (colorLoadAction) {
+	case VKRRenderPassAction::CLEAR:
+		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		break;
+	case VKRRenderPassAction::KEEP:
+		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		break;
+	case VKRRenderPassAction::DONT_CARE:
+	default:
+		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		break;
+	}
 	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -145,9 +172,29 @@ void VulkanQueueRunner::InitRenderpasses() {
 
 	attachments[1].format = vulkan_->GetDeviceInfo().preferredDepthStencilFormat;
 	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	switch (depthLoadAction) {
+	case VKRRenderPassAction::CLEAR:
+		attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		break;
+	case VKRRenderPassAction::KEEP:
+		attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		break;
+	case VKRRenderPassAction::DONT_CARE:
+		attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		break;
+	}
+	switch (stencilLoadAction) {
+	case VKRRenderPassAction::CLEAR:
+		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		break;
+	case VKRRenderPassAction::KEEP:
+		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		break;
+	case VKRRenderPassAction::DONT_CARE:
+		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		break;
+	}
 	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -180,35 +227,20 @@ void VulkanQueueRunner::InitRenderpasses() {
 	rp.pSubpasses = &subpass;
 	rp.dependencyCount = 0;
 
-	for (int depth = 0; depth < 3; depth++) {
-		switch ((VKRRenderPassAction)depth) {
-		case VKRRenderPassAction::CLEAR:
-			attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			break;
-		case VKRRenderPassAction::KEEP:
-			attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-			attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-			break;
-		case VKRRenderPassAction::DONT_CARE:
-			attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			break;
-		}
-		for (int color = 0; color < 3; color++) {
-			switch ((VKRRenderPassAction)color) {
-			case VKRRenderPassAction::CLEAR: attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; break;
-			case VKRRenderPassAction::KEEP: attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; break;
-			case VKRRenderPassAction::DONT_CARE: attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; break;
-			}
-			int index = RPIndex((VKRRenderPassAction)color, (VKRRenderPassAction)depth);
-			vkCreateRenderPass(vulkan_->GetDevice(), &rp, nullptr, &renderPasses_[index]);
-		}
-	}
+	VkResult res = vkCreateRenderPass(vulkan_->GetDevice(), &rp, nullptr, &pass);
+	_assert_(res == VK_SUCCESS);
+	renderPasses_.Insert(key, pass);
+	return pass;
 }
 
 void VulkanQueueRunner::RunSteps(VkCommandBuffer cmd, const std::vector<VKRStep *> &steps) {
 	// Optimizes renderpasses, then sequences them.
+	// Planned optimizations: 
+	//  * Push down empty "Clear/Store" renderpasses, and merge them with the first "Load/Store" to the same framebuffer.
+	//    (These happen in Wipeout)
+	//  * Create copies of render target that are rendered to multiple times and textured from in sequence, and push those render passes
+	//    as early as possible in the frame (Wipeout billboards).
+
 	for (int i = 0; i < steps.size(); i++) {
 		const VKRStep &step = *steps[i];
 		switch (step.stepType) {
@@ -542,10 +574,10 @@ void VulkanQueueRunner::PerformBindFramebufferAsRenderTarget(const VKRStep &step
 			}
 
 			// Due to a known bug in the Mali driver, pass the level count explicitly.
-			TransitionImageLayout2(cmd, fb->color.image, VK_IMAGE_ASPECT_COLOR_BIT,
+			TransitionImageLayout2(cmd, fb->color.image, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT,
 				fb->color.layout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 				srcStage, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				srcAccessMask, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT, 1);
+				srcAccessMask, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
 			fb->color.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
 		if (fb->depth.layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
@@ -571,15 +603,14 @@ void VulkanQueueRunner::PerformBindFramebufferAsRenderTarget(const VKRStep &step
 			}
 
 			// Due to a known bug in the Mali driver, pass the level count explicitly (last param).
-			TransitionImageLayout2(cmd, fb->depth.image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+			TransitionImageLayout2(cmd, fb->depth.image, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
 				fb->depth.layout, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 				srcStage, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-				srcAccessMask, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-				1);
+				srcAccessMask, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
 			fb->depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		}
 
-		renderPass = renderPasses_[RPIndex(step.render.color, step.render.depthStencil)];
+		renderPass = GetRenderPass(step.render.color, step.render.depthStencil, step.render.depthStencil);
 		if (step.render.color == VKRRenderPassAction::CLEAR) {
 			Uint8x4ToFloat4(clearVal[0].color.float32, step.render.clearColor);
 			numClearVals = 1;
@@ -858,7 +889,7 @@ void VulkanQueueRunner::PerformReadback(const VKRStep &step, VkCommandBuffer cmd
 	if (step.readback.src == nullptr) {
 		// We only take screenshots after the main render pass (anything else would be stupid) so we need to transition out of PRESENT,
 		// and then back into it.
-		TransitionImageLayout2(cmd, backbufferImage_, VK_IMAGE_ASPECT_COLOR_BIT,
+		TransitionImageLayout2(cmd, backbufferImage_, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
 			0, VK_ACCESS_TRANSFER_READ_BIT);
@@ -895,7 +926,7 @@ void VulkanQueueRunner::PerformReadback(const VKRStep &step, VkCommandBuffer cmd
 	if (step.readback.src == nullptr) {
 		// We only take screenshots after the main render pass (anything else would be stupid) so we need to transition out of PRESENT,
 		// and then back into it.
-		TransitionImageLayout2(cmd, backbufferImage_, VK_IMAGE_ASPECT_COLOR_BIT,
+		TransitionImageLayout2(cmd, backbufferImage_, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1,
 			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VK_ACCESS_TRANSFER_READ_BIT, 0);
@@ -928,7 +959,7 @@ void VulkanQueueRunner::PerformReadbackImage(const VKRStep &step, VkCommandBuffe
 	vkCmdCopyImageToBuffer(cmd, step.readback_image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readbackBuffer_, 1, &region);
 
 	// Now transfer it back to a texture.
-	TransitionImageLayout2(cmd, step.readback_image.image,
+	TransitionImageLayout2(cmd, step.readback_image.image, 0, 1,
 		VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,

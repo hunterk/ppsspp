@@ -24,9 +24,12 @@
 #include <string>
 #include <codecvt>
 #endif
+
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
+#include "base/timeutil.h"
 #include "math/math_util.h"
 #include "thread/threadutil.h"
 #include "util/text/utf8.h"
@@ -132,6 +135,13 @@ void Audio_Init() {
 	}
 }
 
+void Audio_Shutdown() {
+	if (audioInitialized) {
+		audioInitialized = false;
+		host->ShutdownSound();
+	}
+}
+
 bool IsOnSeparateCPUThread() {
 	if (cpuThread != nullptr) {
 		return cpuThreadID == std::this_thread::get_id();
@@ -172,6 +182,8 @@ bool CPU_NextStateNot(CPUThreadState from, CPUThreadState to) {
 }
 
 bool CPU_IsReady() {
+	if (coreState == CORE_POWERUP)
+		return false;
 	return cpuThreadState == CPU_THREAD_RUNNING || cpuThreadState == CPU_THREAD_NOT_RUNNING;
 }
 
@@ -261,7 +273,8 @@ void CPU_Init() {
 
 	// TODO: Check Game INI here for settings, patches and cheats, and modify coreParameter accordingly
 
-	// Why did we check for CORE_POWERDOWN here?
+	// If they shut down early, we'll catch it when load completes.
+	// Note: this may return before init is complete, which is checked if CPU_IsReady().
 	if (!LoadFile(&loadedFile, &coreParameter.errorString)) {
 		CPU_Shutdown();
 		coreParameter.fileToStart = "";
@@ -273,8 +286,6 @@ void CPU_Init() {
 	if (coreParameter.updateRecent) {
 		g_Config.AddRecent(filename);
 	}
-
-	coreState = coreParameter.startPaused ? CORE_STEPPING : CORE_RUNNING;
 }
 
 void CPU_Shutdown() {
@@ -288,8 +299,7 @@ void CPU_Shutdown() {
 	__KernelShutdown();
 	HLEShutdown();
 	if (coreParameter.enableSound) {
-		host->ShutdownSound();
-		audioInitialized = false;  // deleted in ShutdownSound
+		Audio_Shutdown();
 	}
 	pspFileSystem.Shutdown();
 	mipsr4k.Shutdown();
@@ -436,16 +446,16 @@ bool PSP_InitUpdate(std::string *error_string) {
 
 	bool success = coreParameter.fileToStart != "";
 	*error_string = coreParameter.errorString;
-	if (success) {
+	if (success && gpu == nullptr) {
 		success = GPU_Init(coreParameter.graphicsContext, coreParameter.thin3d);
 		if (!success) {
 			PSP_Shutdown();
 			*error_string = "Unable to initialize rendering engine.";
 		}
 	}
-	pspIsInited = success;
-	pspIsIniting = false;
-	return true;
+	pspIsInited = success && GPU_IsReady();
+	pspIsIniting = success && !pspIsInited;
+	return !success || pspIsInited;
 }
 
 bool PSP_Init(const CoreParameter &coreParam, std::string *error_string) {
@@ -456,7 +466,8 @@ bool PSP_Init(const CoreParameter &coreParam, std::string *error_string) {
 		CPU_WaitStatus(cpuThreadReplyCond, &CPU_IsReady);
 	}
 
-	PSP_InitUpdate(error_string);
+	while (!PSP_InitUpdate(error_string))
+		sleep_ms(10);
 	return pspIsInited;
 }
 
