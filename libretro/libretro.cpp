@@ -147,13 +147,17 @@ extern "C"
 retro_hw_get_proc_address_t libretro_get_proc_address;
 }
 
+bool VulkanMayBeAvailable() 
+{
+   return false;
+}
+
 class LibretroHost : public Host {
 public:
 	LibretroHost() {
 	}
 
 	void UpdateUI() override {}
-
 	void UpdateMemView() override {}
 	void UpdateDisassembly() override {}
 
