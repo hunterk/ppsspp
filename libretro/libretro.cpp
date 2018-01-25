@@ -147,10 +147,14 @@ extern "C"
 retro_hw_get_proc_address_t libretro_get_proc_address;
 }
 
+// bandaid to fix non-android linux builds
+// vulkan should be implemented correctly
+#ifdef __ANDROID__
 bool VulkanMayBeAvailable() 
 {
    return false;
 }
+#endif
 
 class LibretroHost : public Host {
 public:
