@@ -18,6 +18,7 @@
 #include "Core/System.h"
 #include "Log.h"
 #include "LogManager.h"
+#include "ConsoleListener.h"
 #include "gfx/gl_common.h"
 #include "file/vfs.h"
 #include "file/zip_read.h"
@@ -53,34 +54,25 @@ class PrintfLogger : public LogListener {
 public:
 	void Log(const LogMessage &message) {
 		switch (message.level) {
-		case LogTypes::LVERBOSE:
-			if (log_cb)
-				log_cb(RETRO_LOG_INFO, "V %s.\n", message.msg.c_str());
-			break;
+      case LogTypes::LVERBOSE:
 		case LogTypes::LDEBUG:
-			if (log_cb)
-				log_cb(RETRO_LOG_DEBUG, "D %s.\n", message.msg.c_str());
-			break;
-		case LogTypes::LINFO:
-			if (log_cb)
-				log_cb(RETRO_LOG_INFO, "I %s.\n", message.msg.c_str());
+			log_cb(RETRO_LOG_DEBUG, "%s", message.msg.c_str());
 			break;
 		case LogTypes::LERROR:
-			if (log_cb)
-				log_cb(RETRO_LOG_ERROR, "E %s.\n", message.msg.c_str());
+			log_cb(RETRO_LOG_ERROR, "%s", message.msg.c_str());
 			break;
+      case LogTypes::LNOTICE:
 		case LogTypes::LWARNING:
-			if (log_cb)
-				log_cb(RETRO_LOG_WARN, "W %s.\n", message.msg.c_str());
+			log_cb(RETRO_LOG_WARN, "%s", message.msg.c_str());
 			break;
-		case LogTypes::LNOTICE:
+      case LogTypes::LINFO:
 		default:
-			if (log_cb)
-				log_cb(RETRO_LOG_INFO, "N %s.\n", message.msg.c_str());
+			log_cb(RETRO_LOG_INFO, "%s", message.msg.c_str());
 			break;
 		}
 	}
 };
+static PrintfLogger printfLogger;
 
 Draw::DrawContext *libretro_draw;
 static bool gl_initialized = false;
@@ -149,12 +141,12 @@ retro_hw_get_proc_address_t libretro_get_proc_address;
 
 // bandaid to fix non-android linux builds
 // vulkan should be implemented correctly
-#ifdef __ANDROID__
+//#ifdef __ANDROID__
 bool VulkanMayBeAvailable() 
 {
    return false;
 }
-#endif
+//#endif
 
 class LibretroHost : public Host {
 public:
@@ -971,17 +963,13 @@ bool retro_load_game(const struct retro_game_info *game)
    //gl_lost_manager_init(); /* Removed in PPSSPP upstream */
 
    LogManager::Init();
-   LogManager *logman = LogManager::GetInstance();
 
-   PrintfLogger *printfLogger = new PrintfLogger();
-
-   bool fullLog = true;
-   for (int i = 0; i < LogTypes::NUMBER_OF_LOGS; i++) {
-	   LogTypes::LOG_TYPE type = (LogTypes::LOG_TYPE)i;
-	   logman->SetEnabled(type, fullLog);
-	   logman->SetLogLevel(type, LogTypes::LDEBUG);
+   if(log_cb)
+   {
+      LogManager *logman = LogManager::GetInstance();
+      logman->RemoveListener(logman->GetConsoleListener());
+      logman->AddListener(&printfLogger);
    }
-   logman->AddListener(printfLogger);
 
 #if 0
    g_Config.Load("");
@@ -1135,40 +1123,7 @@ void retro_run(void)
 	   check_variables();
 	   if (gpu_refresh)
 	   {
-		   switch (coreParam.renderWidth)
-		   {
-			   case 480:
-				   g_Config.iInternalResolution = 1;
-				   break;
-			   case 960:
-				   g_Config.iInternalResolution = 2;
-				   break;
-			   case 1440:
-				   g_Config.iInternalResolution = 3;
-				   break;
-			   case 1920:
-				   g_Config.iInternalResolution = 4;
-				   break;
-			   case 2400:
-				   g_Config.iInternalResolution = 5;
-				   break;
-			   case 2880:
-				   g_Config.iInternalResolution = 6;
-				   break;
-			   case 3360:
-				   g_Config.iInternalResolution = 7;
-				   break;
-			   case 3840:
-				   g_Config.iInternalResolution = 8;
-				   break;
-			   case 4320:
-				   g_Config.iInternalResolution = 9;
-				   break;
-			   case 4800:
-				   g_Config.iInternalResolution = 10;
-				   break;
-
-		   }
+         g_Config.iInternalResolution = std::max(1, (int)(coreParam.renderWidth / 480));
 
 		   if (gpu)
 		   {

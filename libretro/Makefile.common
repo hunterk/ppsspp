@@ -59,6 +59,7 @@ SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_add.c \
 SOURCES_CXX += $(COMMONDIR)/KeyMap.cpp
 SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_close.c
 SOURCES_CXX += $(COMMONDIR)/LogManager.cpp
+SOURCES_CXX += $(COMMONDIR)/OSVersion.cpp
 SOURCES_C   += $(EXTDIR)/libkirk/amctrl.c \
 				$(NATIVEDIR)/ext/libpng17/pngrio.c \
 				$(NATIVEDIR)/ext/libpng17/pngrtran.c \
@@ -220,7 +221,8 @@ SOURCES_CXX += $(GPUCOMMONDIR)/TextureDecoder.cpp \
 				$(EXTDIR)/glslang/SPIRV/SpvBuilder.cpp \
 				$(EXTDIR)/SPIRV-Cross/spirv_cfg.cpp \
 				$(EXTDIR)/SPIRV-Cross/spirv_cross.cpp \
-				$(EXTDIR)/SPIRV-Cross/spirv_glsl.cpp
+				$(EXTDIR)/SPIRV-Cross/spirv_glsl.cpp \
+            $(EXTDIR)/SPIRV-Cross/spirv_hlsl.cpp
 
 ifeq ($(PLATFORM_EXT), win32)
 SOURCES_CXX += $(COMMONDIR)/MemArenaWin32.cpp \
@@ -444,7 +446,7 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(COREDIR)/Util/BlockAllocator.cpp \
 	       $(COREDIR)/Util/PPGeDraw.cpp \
 	       $(COREDIR)/Util/ppge_atlas.cpp \
-	       $(COREDIR)/Util/AudioFormat.cpp \
+	       $(COREDIR)/Util/AudioFormat.cpp
 
 SOURCES_CXX +=			$(LIBRETRODIR)/libretro.cpp
 SOURCES_CXX += 		$(LIBRETRODIR)/libretro_osm.cpp

@@ -55,10 +55,10 @@ NATIVEDIR		= $(CORE_DIR)/native
 EXTDIR			= $(CORE_DIR)/ext
 
 TARGET_NAME := ppsspp
-GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
-ifneq ($(GIT_VERSION)," unknown")
-	CXXFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
-endif
+#GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+#ifneq ($(GIT_VERSION)," unknown")
+#	CXXFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+#endif
 CC_AS ?= $(CC)
 FFMPEGINCFLAGS :=
 FFMPEGLIBDIR :=
@@ -363,14 +363,17 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 	LDFLAGS += ws2_32.lib user32.lib shell32.lib avcodec.lib avutil.lib swresample.lib swscale.lib avformat.lib advapi32.lib winmm.lib gdi32.lib
 
 # Windows
-else ifneq (,$(findstring win,$(platform)))
-	CFLAGS += -D_UNICODE -DUNICODE
-	CXXFLAGS += -fpermissive -D_UNICODE -DUNICODE 
+else ifneq (,$(findstring win,$(platform)))   
 	TARGET := $(TARGET_NAME)_libretro.dll
+	CFLAGS += -D_UNICODE -DUNICODE
+	CXXFLAGS += -fpermissive -Wno-multichar -D_UNICODE -DUNICODE
 	WITH_DYNAREC = x86_64
-	LDFLAGS += -shared -static-libgcc -static-libstdc++ -Wl,--version-script=link.T -lwinmm -lgdi32 -lwsock32 -lws2_32
+	LDFLAGS += -shared -Wl,--no-undefined -static-libgcc -static-libstdc++ -Wl,--version-script=link.T -lwinmm -lgdi32 -lwsock32 -lws2_32
 	GL_LIB := -lopengl32
 	PLATFORM_EXT := win32
+   FFMPEGINCFLAGS += -I$(FFMPEGDIR)/Windows/$(FFMPEG_ARCH)/include
+   FFMPEGLDFLAGS += -lavformat -lavcodec -lavutil -lswresample -lswscale
+   fpic = -fPIC
 	CC = gcc
 	CXX = g++
 endif
@@ -395,7 +398,7 @@ else
 	GLFLAGS += -DHAVE_OPENGL
 endif
 
-COREFLAGS += -D__LIBRETRO__ -DINLINE="inline" -DPPSSPP -DUSE_FFMPEG -DBAKE_IN_GIT -DPROFILE_THIS_SCOPE\(x\) -DGLEW_STATIC -DGLEW_NO_GLU
+COREFLAGS += -D__LIBRETRO__ -DPPSSPP -DUSE_FFMPEG -DGLEW_STATIC -DGLEW_NO_GLU
 
 ifeq ($(DEBUG), 1)
 	ifneq (,$(findstring msvc,$(platform)))

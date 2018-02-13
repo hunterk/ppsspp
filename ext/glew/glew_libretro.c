@@ -49,6 +49,7 @@ extern retro_hw_get_proc_address_t libretro_get_proc_address;
  */
 #  define glewGetProcAddress(name) (libretro_get_proc_address)(name)
 
+# undef  GLEW_GET_VAR
 # define GLEW_GET_VAR(x) (x)
 
 /*
