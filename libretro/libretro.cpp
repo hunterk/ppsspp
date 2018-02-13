@@ -149,12 +149,12 @@ retro_hw_get_proc_address_t libretro_get_proc_address;
 
 // bandaid to fix non-android linux builds
 // vulkan should be implemented correctly
-#ifdef __ANDROID__
+//#ifdef __ANDROID__
 bool VulkanMayBeAvailable() 
 {
    return false;
 }
-#endif
+//#endif
 
 class LibretroHost : public Host {
 public:
@@ -979,7 +979,7 @@ bool retro_load_game(const struct retro_game_info *game)
    for (int i = 0; i < LogTypes::NUMBER_OF_LOGS; i++) {
 	   LogTypes::LOG_TYPE type = (LogTypes::LOG_TYPE)i;
 	   logman->SetEnabled(type, fullLog);
-	   logman->SetLogLevel(type, LogTypes::LDEBUG);
+	   logman->SetLogLevel(type, LogTypes::LWARNING);
    }
    logman->AddListener(printfLogger);
 
