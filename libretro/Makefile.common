@@ -563,6 +563,8 @@ SOURCES_C += $(EXTDIR)/udis86/decode.c \
 			 $(EXTDIR)/udis86/syn.c \
 			 $(EXTDIR)/udis86/udis86.c
 
+SOURCES_CXX += $(COMMONDIR)/Vulkan/VulkanLoader.cpp
+
 SOURCES_C += $(LIBRETRO_SRC)
 
 ifneq ($(STATIC_LINKING), 1)
