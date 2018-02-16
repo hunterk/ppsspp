@@ -563,7 +563,9 @@ SOURCES_C += $(EXTDIR)/udis86/decode.c \
 			 $(EXTDIR)/udis86/syn.c \
 			 $(EXTDIR)/udis86/udis86.c
 
-SOURCES_CXX += $(COMMONDIR)/Vulkan/VulkanLoader.cpp
+ifneq ($(PLATFORM_EXT), darwin)
+   SOURCES_CXX += $(COMMONDIR)/Vulkan/VulkanLoader.cpp
+endif
 
 SOURCES_C += $(LIBRETRO_SRC)
 
