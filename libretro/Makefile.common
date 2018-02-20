@@ -135,7 +135,9 @@ SOURCES_CXX += $(GPUCOMMONDIR)/TextureDecoder.cpp \
 				$(GPUDIR)/GLES/StencilBufferGLES.cpp \
 				$(EXTDIR)/native/base/backtrace.cpp \
 				$(EXTDIR)/native/base/buffer.cpp \
+				$(EXTDIR)/native/base/colorutil.cpp \
 				$(EXTDIR)/native/base/display.cpp \
+            $(EXTDIR)/native/base/logging.cpp \
 				$(EXTDIR)/native/base/stringutil.cpp \
 				$(EXTDIR)/native/base/timeutil.cpp \
 				$(EXTDIR)/native/data/compression.cpp \
@@ -201,12 +203,15 @@ SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(NATIVEDIR)/gfx/GLStateCache.cpp \
 	       $(NATIVEDIR)/gfx/texture_atlas.cpp \
 			 $(NATIVEDIR)/gfx_es2/draw_buffer.cpp \
+          $(NATIVEDIR)/gfx_es2/draw_text.cpp \
 	       $(NATIVEDIR)/gfx_es2/gpu_features.cpp \
 	       $(NATIVEDIR)/gfx_es2/glsl_program.cpp \
 	       $(NATIVEDIR)/i18n/i18n.cpp \
 	       $(NATIVEDIR)/image/zim_load.cpp \
 	       $(NATIVEDIR)/image/png_load.cpp \
+	       $(NATIVEDIR)/input/gesture_detector.cpp \
 	       $(NATIVEDIR)/input/input_state.cpp \
+	       $(NATIVEDIR)/math/curves.cpp \
 	       $(NATIVEDIR)/math/expression_parser.cpp \
 	       $(NATIVEDIR)/math/lin/quat.cpp \
 	       $(NATIVEDIR)/math/lin/matrix4x4.cpp \
@@ -217,11 +222,17 @@ SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(NATIVEDIR)/thin3d/thin3d_gl.cpp \
 	       $(NATIVEDIR)/thread/threadutil.cpp \
 	       $(NATIVEDIR)/thread/threadpool.cpp \
+	       $(NATIVEDIR)/ui/screen.cpp \
 	       $(NATIVEDIR)/ui/ui.cpp \
-			 $(NATIVEDIR)/ui/view.cpp \
+          $(NATIVEDIR)/ui/ui_context.cpp \
+	       $(NATIVEDIR)/ui/ui_screen.cpp \
+	       $(NATIVEDIR)/ui/ui_tween.cpp \
+	       $(NATIVEDIR)/ui/view.cpp \
+	       $(NATIVEDIR)/ui/viewgroup.cpp \
 	       $(NATIVEDIR)/util/hash/hash.cpp \
 	       $(NATIVEDIR)/util/text/utf8.cpp \
 	       $(NATIVEDIR)/util/text/parsers.cpp \
+	       $(NATIVEDIR)/util/text/wrap_text.cpp \
 	       $(NATIVEDIR)/ext/jpge/jpgd.cpp \
 	       $(NATIVEDIR)/ext/jpge/jpge.cpp \
 	       $(COREDIR)/AVIDump.cpp \

@@ -107,12 +107,12 @@ template <typename T> class RetroOption {
    RetroOption(const char* id, const char* name, std::initializer_list<const char*> list) : id_(id), name_(name)
 	{
 		for (auto option : list)
-			list_.push_back({ option, list_.size() });
+			list_.push_back({ option, (T)list_.size() });
 	}
    RetroOption(const char* id, const char* name, T first, std::initializer_list<const char*> list) : id_(id), name_(name)
 	{
 		for (auto option : list)
-			list_.push_back({ option, first + list_.size()});
+			list_.push_back({ option, first + (int)list_.size()});
 	}
    RetroOption(const char* id, const char* name, T first, int count, int step = 1) : id_(id), name_(name)
 	{
@@ -679,3 +679,6 @@ int System_GetPropertyInt(SystemProperty prop)
 std::string System_GetProperty(SystemProperty prop) { return ""; }
 
 void System_SendMessage(const char* command, const char* parameter) {}
+void NativeUpdate() { }
+void NativeRender(GraphicsContext *graphicsContext) {}
+void NativeResized() { }

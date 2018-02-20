@@ -422,7 +422,9 @@ CFLAGS		+= $(CPUOPTS) $(COREFLAGS) $(FFMPEGINCFLAGS) $(INCFLAGS) $(INCFLAGS_PLAT
 
 LDFLAGS		+= $(FFMPEGLDFLAGS) $(fpic)
 ifeq (,$(findstring android,$(platform)))
-	LDFLAGS		+= -lpthread
+   ifeq (,$(findstring msvc,$(platform)))
+      LDFLAGS		+= -lpthread
+   endif
 endif
 
 OBJOUT   = -o
