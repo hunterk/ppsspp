@@ -173,26 +173,30 @@ class VKContext : public HWRenderContext {
 #ifdef _WIN32
 class D3D9Context : public HWRenderContext {
 	public:
-	D3D9Context() HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 9) {}
+	D3D9Context() : HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 9) {}
 	bool Init() override { return false; }
+#if 0
 	void InitDrawContext() override
 	{
 		draw_ = Draw::T3DCreateDX9Context();
 		draw_->CreatePresets();
 	}
+#endif
 	GPUCore GetGPUCore() override { return GPUCORE_DIRECTX9; }
    const char* Ident() override { return "DirectX 9"; }
 };
 
 class D3D11Context : public HWRenderContext {
 	public:
-	D3D9Context() HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 11) {}
+	D3D11Context() : HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 11) {}
 	bool Init() override { return false; }
+#if 0
 	void InitDrawContext() override
 	{
 		draw_ = Draw::T3DCreateD3D11Context();
 		draw_->CreatePresets();
 	}
+#endif
 	GPUCore GetGPUCore() override { return GPUCORE_DIRECTX11; }
    const char* Ident() override { return "DirectX 11"; }
 };
