@@ -55,10 +55,7 @@ NATIVEDIR		= $(CORE_DIR)/native
 EXTDIR			= $(CORE_DIR)/ext
 
 TARGET_NAME := ppsspp
-#GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
-#ifneq ($(GIT_VERSION)," unknown")
-#	CXXFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
-#endif
+
 CC_AS ?= $(CC)
 FFMPEGINCFLAGS :=
 FFMPEGLIBDIR :=
@@ -266,17 +263,17 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 	ifneq (,$(findstring desktop,$(PlatformSuffix)))
 		WinPartition = desktop
 		MSVC2017CompileFlags = -DWINAPI_FAMILY=WINAPI_FAMILY_DESKTOP_APP -D_UNICODE -DUNICODE -DWINVER=0x0501 -D_WIN32_WINNT=0x0501
-		LDFLAGS += -MANIFEST -LTCG:incremental -NXCOMPAT -DYNAMICBASE -DEBUG -OPT:REF -INCREMENTAL:NO -SUBSYSTEM:WINDOWS -MANIFESTUAC:"level='asInvoker' uiAccess='false'" -OPT:ICF -ERRORREPORT:PROMPT -NOLOGO -TLBID:1
+		LDFLAGS += -MANIFEST -NXCOMPAT -DYNAMICBASE -DEBUG -OPT:REF -INCREMENTAL:NO -SUBSYSTEM:WINDOWS -MANIFESTUAC:"level='asInvoker' uiAccess='false'" -OPT:ICF -ERRORREPORT:PROMPT -NOLOGO -TLBID:1
 		LIBS += kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib
 	else ifneq (,$(findstring uwp,$(PlatformSuffix)))
 		WinPartition = uwp
 		MSVC2017CompileFlags = -DWINAPI_FAMILY=WINAPI_FAMILY_APP -DWINDLL -D_UNICODE -DUNICODE -DWRL_NO_DEFAULT_LIB
-		LDFLAGS += -APPCONTAINER -NXCOMPAT -DYNAMICBASE -MANIFEST:NO -LTCG -OPT:REF -SUBSYSTEM:CONSOLE -MANIFESTUAC:NO -OPT:ICF -ERRORREPORT:PROMPT -NOLOGO -TLBID:1 -DEBUG:FULL -WINMD:NO
+		LDFLAGS += -APPCONTAINER -NXCOMPAT -DYNAMICBASE -MANIFEST:NO -OPT:REF -SUBSYSTEM:CONSOLE -MANIFESTUAC:NO -OPT:ICF -ERRORREPORT:PROMPT -NOLOGO -TLBID:1 -DEBUG:FULL -WINMD:NO
 		LIBS += WindowsApp.lib
 	endif
 
-	CFLAGS += $(MSVC2017CompileFlags)
-	CXXFLAGS += $(MSVC2017CompileFlags)
+	CFLAGS += $(MSVC2017CompileFlags) -nologo
+	CXXFLAGS += $(MSVC2017CompileFlags) -nologo -EHsc
 
 	TargetArchMoniker = $(subst $(WinPartition)_,,$(PlatformSuffix))
 
@@ -358,7 +355,7 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 	PLATFORM_EXT := win32
 	FFMPEGINCFLAGS += -I$(FFMPEGDIR)/Windows/$(FFMPEG_ARCH)/include
 	FFMPEGLIBDIR := $(FFMPEGDIR)/Windows/$(FFMPEG_ARCH)/lib
-	FFMPEGLDFLAGS += -L$(FFMPEGLIBDIR)
+	FFMPEGLDFLAGS += -LIBPATH:$(FFMPEGLIBDIR)
 	GL_LIB := opengl32.lib
 	LDFLAGS += ws2_32.lib user32.lib shell32.lib avcodec.lib avutil.lib swresample.lib swscale.lib avformat.lib advapi32.lib winmm.lib gdi32.lib
 
@@ -414,10 +411,14 @@ endif
 
 COREFLAGS +=-DNO_VULKAN
 
+ifeq (,$(findstring msvc,$(platform)))
+   CXXFLAGS += -std=c++11
+endif
+
 ### Finalize ###
 OBJECTS		+= $(SOURCES_CXX:.cpp=.o) $(SOURCES_C:.c=.o) $(ASMFILES:.S=.o)
-CXXFLAGS	+= -std=c++11 $(CPUOPTS) $(COREFLAGS) $(FFMPEGINCFLAGS) $(INCFLAGS) $(INCFLAGS_PLATFORM) $(PLATCFLAGS) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS) 
-CFLAGS		+= $(CPUOPTS) $(COREFLAGS) $(INCFLAGS) $(FFMPEGINCFLAGS) $(INCFLAGS_PLATFORM) $(PLATCFLAGS) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS)
+CXXFLAGS    += $(CPUOPTS) $(COREFLAGS) $(FFMPEGINCFLAGS) $(INCFLAGS) $(INCFLAGS_PLATFORM) $(PLATCFLAGS) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS)
+CFLAGS		+= $(CPUOPTS) $(COREFLAGS) $(FFMPEGINCFLAGS) $(INCFLAGS) $(INCFLAGS_PLATFORM) $(PLATCFLAGS) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS)
 
 LDFLAGS		+= $(FFMPEGLDFLAGS) $(fpic)
 ifeq (,$(findstring android,$(platform)))
@@ -433,6 +434,9 @@ ifneq (,$(findstring msvc,$(platform)))
 	LD = link.exe
 else
 	LD = $(CXX)
+   CFLAGS += -ffunction-sections -fdata-sections
+   CXXFLAGS += -ffunction-sections -fdata-sections
+   LDFLAGS += -Wl,--gc-sections
 endif
 
 all: $(TARGET)
@@ -454,7 +458,7 @@ else
 endif
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET) $(CORE_DIR)/git-version.inc $(CORE_DIR)/git-version.cpp
 
 .PHONY: clean
 

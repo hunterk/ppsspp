@@ -18,106 +18,75 @@ INCFLAGS += \
 	$(FFMPEGINCFLAGS) \
 	-I$(EXTDIR)/cityhash \
 	-I$(EXTDIR)/armips \
-	-I$(NATIVEDIR)/ext/libzip \
 	-I$(NATIVEDIR)/ext \
 	-I$(NATIVEDIR) \
 	-I$(EXTDIR)/libkirk \
 	-I$(EXTDIR)/xbrz \
-	-I$(EXTDIR)/xxhash
-
-INCFLAGS  += -I$(NATIVEDIR)/ext/rg_etc1
-#INCFLAGS += -I$(NATIVEDIR)/ext/stb_vorbis
+	-I$(EXTDIR)/xxhash \
+	-I$(EXTDIR)/glew
 
 SOURCES_C += $(EXTDIR)/glew/glew_libretro.c
-INCFLAGS += -I$(EXTDIR)/glew
 
-SOURCES_CXX += $(NATIVEDIR)/ext/rg_etc1/rg_etc1.cpp
-SOURCES_CXX += $(EXTDIR)/snappy/snappy-c.cpp
-#SOURCES_C   += $(NATIVEDIR)/ext/stb_vorbis/stb_vorbis.c
-SOURCES_C    += $(NATIVEDIR)/ext/libpng17/png.c
-SOURCES_C   += $(EXTDIR)/sfmt19937/SFMT.c
-SOURCES_CXX += $(NATIVEDIR)/ext/vjson/json.cpp \
-	       $(NATIVEDIR)/ext/vjson/block_allocator.cpp
-SOURCES_CXX += $(EXTDIR)/snappy/snappy.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libpng17/pngerror.c
-SOURCES_C    += $(NATIVEDIR)/ext/libpng17/pngget.c \
-				 $(NATIVEDIR)/ext/libzip/zip_name_locate.c
-SOURCES_C   += $(NATIVEDIR)/ext/libpng17/pngmem.c \
-				$(NATIVEDIR)/ext/libpng17/pngpread.c 
+SOURCES_C += \
+	$(EXTDIR)/libkirk/AES.c \
+	$(EXTDIR)/libkirk/amctrl.c \
+	$(EXTDIR)/libkirk/SHA1.c \
+	$(EXTDIR)/libkirk/bn.c \
+	$(EXTDIR)/libkirk/ec.c \
+	$(EXTDIR)/libkirk/kirk_engine.c
+
+SOURCES_C += \
+	$(NATIVEDIR)/ext/libpng17/png.c \
+	$(NATIVEDIR)/ext/libpng17/pngerror.c \
+	$(NATIVEDIR)/ext/libpng17/pngget.c \
+	$(NATIVEDIR)/ext/libpng17/pngmem.c \
+	$(NATIVEDIR)/ext/libpng17/pngread.c \
+	$(NATIVEDIR)/ext/libpng17/pngrio.c \
+	$(NATIVEDIR)/ext/libpng17/pngrtran.c \
+	$(NATIVEDIR)/ext/libpng17/pngrutil.c \
+	$(NATIVEDIR)/ext/libpng17/pngset.c \
+	$(NATIVEDIR)/ext/libpng17/pngtrans.c \
+	$(NATIVEDIR)/ext/libpng17/pngwio.c \
+	$(NATIVEDIR)/ext/libpng17/pngwrite.c \
+	$(NATIVEDIR)/ext/libpng17/pngwtran.c \
+	$(NATIVEDIR)/ext/libpng17/pngwutil.c
+
+SOURCES_C += $(EXTDIR)/sfmt19937/SFMT.c
+SOURCES_C   += $(EXTDIR)/xxhash.c
+
+SOURCES_CXX += \
+	$(EXTDIR)/snappy/snappy-c.cpp \
+	$(EXTDIR)/snappy/snappy.cpp
+
+SOURCES_CXX += $(EXTDIR)/xbrz/xbrz.cpp
+
+SOURCES_CXX += \
+	$(NATIVEDIR)/ext/vjson/json.cpp \
+	$(NATIVEDIR)/ext/vjson/block_allocator.cpp
+
 SOURCES_CXX += $(NATIVEDIR)/ext/cityhash/city.cpp
-SOURCES_CXX += $(COMMONDIR)/ChunkFile.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libpng17/pngread.c
-SOURCES_CXX += $(COMMONDIR)/ConsoleListener.cpp \
-				$(COMMONDIR)/Crypto/md5.cpp \
-				$(COMMONDIR)/Crypto/sha1.cpp \
-				$(COMMONDIR)/Crypto/sha256.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/mkstemp.c
-SOURCES_CXX += $(COMMONDIR)/FileUtil.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_add.c \
-				$(EXTDIR)/libkirk/AES.c \
-				$(NATIVEDIR)/ext/libzip/zip_add_dir.c
-SOURCES_CXX += $(COMMONDIR)/KeyMap.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_close.c
-SOURCES_CXX += $(COMMONDIR)/LogManager.cpp
-SOURCES_CXX += $(COMMONDIR)/OSVersion.cpp
-SOURCES_C   += $(EXTDIR)/libkirk/amctrl.c \
-				$(NATIVEDIR)/ext/libpng17/pngrio.c \
-				$(NATIVEDIR)/ext/libpng17/pngrtran.c \
-				$(NATIVEDIR)/ext/libzip/zip_delete.c \
-				$(NATIVEDIR)/ext/libzip/zip_dirent.c \
-				$(EXTDIR)/libkirk/SHA1.c \
-				$(NATIVEDIR)/ext/libzip/zip_entry_free.c \
-				$(NATIVEDIR)/ext/libzip/zip_entry_new.c 
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_err_str.c \
-				$(NATIVEDIR)/ext/libzip/zip_error.c \
-				$(NATIVEDIR)/ext/libzip/zip_error_clear.c \
-				$(NATIVEDIR)/ext/libzip/zip_error_get.c
-SOURCES_CXX += $(COMMONDIR)/MemoryUtil.cpp
-SOURCES_C   += $(EXTDIR)/libkirk/bn.c \
-				$(NATIVEDIR)/ext/libzip/zip_error_get_sys_type.c \
-				$(NATIVEDIR)/ext/libzip/zip_error_strerror.c \
-				$(EXTDIR)/libkirk/ec.c \
-				$(NATIVEDIR)/ext/libzip/zip_error_to_str.c \
-				$(NATIVEDIR)/ext/libzip/zip_fclose.c 
-SOURCES_CXX += $(COMMONDIR)/Misc.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_file_error_clear.c
-SOURCES_CXX += $(COMMONDIR)/MsgHandler.cpp
-SOURCES_C   += $(EXTDIR)/libkirk/kirk_engine.c \
-				$(NATIVEDIR)/ext/libzip/zip_file_error_get.c \
-				$(NATIVEDIR)/ext/libzip/zip_file_get_offset.c \
-				$(NATIVEDIR)/ext/libzip/zip_file_strerror.c
-SOURCES_CXX += $(COMMONDIR)/StringUtils.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_filerange_crc.c \
-				$(NATIVEDIR)/ext/libzip/zip_fopen.c
-SOURCES_CXX += $(EXTDIR)/xbrz/xbrz.cpp \
-				$(COMMONDIR)/ThreadPools.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_fopen_index.c \
-				$(NATIVEDIR)/ext/libzip/zip_fread.c \
-				$(NATIVEDIR)/ext/libzip/zip_free.c
-SOURCES_CXX += $(COMMONDIR)/Timer.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_get_archive_comment.c \
-				$(NATIVEDIR)/ext/libzip/zip_get_archive_flag.c \
-				$(NATIVEDIR)/ext/libpng17/pngrutil.c \
-				$(NATIVEDIR)/ext/libzip/zip_get_file_comment.c \
-				$(NATIVEDIR)/ext/libpng17/pngset.c \
-				$(NATIVEDIR)/ext/libzip/zip_get_name.c \
-				$(NATIVEDIR)/ext/libzip/zip_get_num_files.c \
-				$(NATIVEDIR)/ext/libzip/zip_memdup.c \
-				$(NATIVEDIR)/ext/libzip/zip_new.c \
-				$(NATIVEDIR)/ext/libzip/zip_open.c \
-				$(NATIVEDIR)/ext/libzip/zip_rename.c \
-				$(NATIVEDIR)/ext/libpng17/pngtest.c \
-				$(NATIVEDIR)/ext/libzip/zip_replace.c \
-				$(EXTDIR)/xxhash.c \
-				$(NATIVEDIR)/ext/libzip/zip_set_archive_comment.c \
-				$(NATIVEDIR)/ext/libzip/zip_set_archive_flag.c \
-				$(NATIVEDIR)/ext/libzip/zip_set_file_comment.c \
-				$(NATIVEDIR)/ext/libzip/zip_set_name.c \
-				$(NATIVEDIR)/ext/libzip/zip_source_buffer.c \
-				$(NATIVEDIR)/ext/libzip/zip_source_file.c \
-				$(NATIVEDIR)/ext/libzip/zip_source_filep.c \
-				$(NATIVEDIR)/ext/libpng17/pngtrans.c \
-				$(NATIVEDIR)/ext/libzip/zip_source_free.c
+
+SOURCES_CXX += \
+	$(COMMONDIR)/Crypto/md5.cpp \
+	$(COMMONDIR)/Crypto/sha1.cpp \
+	$(COMMONDIR)/Crypto/sha256.cpp
+
+SOURCES_CXX += \
+	$(COMMONDIR)/ChunkFile.cpp \
+	$(COMMONDIR)/ConsoleListener.cpp \
+	$(COMMONDIR)/FileUtil.cpp \
+	$(COMMONDIR)/KeyMap.cpp \
+	$(COMMONDIR)/LogManager.cpp \
+	$(COMMONDIR)/OSVersion.cpp \
+	$(COMMONDIR)/MemoryUtil.cpp \
+	$(COMMONDIR)/Misc.cpp \
+	$(COMMONDIR)/MsgHandler.cpp \
+	$(COMMONDIR)/StringUtils.cpp \
+	$(COMMONDIR)/Timer.cpp \
+	$(COMMONDIR)/ThreadPools.cpp
+
+
+
 SOURCES_CXX += $(GPUCOMMONDIR)/VertexDecoderCommon.cpp \
 	       $(GPUCOMMONDIR)/GPUStateUtils.cpp \
 	       $(GPUCOMMONDIR)/DrawEngineCommon.cpp \
@@ -128,22 +97,8 @@ SOURCES_CXX += $(GPUCOMMONDIR)/VertexDecoderCommon.cpp \
 	       $(GPUCOMMONDIR)/ShaderTranslation.cpp \
 	       $(GPUCOMMONDIR)/GPUDebugInterface.cpp \
 	       $(GPUCOMMONDIR)/DepalettizeShaderCommon.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libzip/zip_source_function.c \
-				$(NATIVEDIR)/ext/libzip/zip_source_zip.c \
-				$(NATIVEDIR)/ext/libzip/zip_stat.c \
-				$(NATIVEDIR)/ext/libzip/zip_stat_index.c \
-				$(NATIVEDIR)/ext/libpng17/pngwio.c \
-				$(NATIVEDIR)/ext/libzip/zip_stat_init.c \
-				$(NATIVEDIR)/ext/libpng17/pngwrite.c \
-				$(NATIVEDIR)/ext/libzip/zip_strerror.c \
-				$(NATIVEDIR)/ext/libzip/zip_unchange.c \
-				$(NATIVEDIR)/ext/libzip/zip_unchange_all.c
 SOURCES_CXX += $(GPUCOMMONDIR)/TransformCommon.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libpng17/pngwtran.c \
-				$(NATIVEDIR)/ext/libzip/zip_unchange_archive.c \
-				$(NATIVEDIR)/ext/libzip/zip_unchange_data.c
 SOURCES_CXX += $(GPUCOMMONDIR)/IndexGenerator.cpp
-SOURCES_C   += $(NATIVEDIR)/ext/libpng17/pngwutil.c
 SOURCES_CXX += $(GPUCOMMONDIR)/TextureDecoder.cpp \
 				$(GPUCOMMONDIR)/PostShader.cpp \
 				$(COMMONDIR)/ColorConv.cpp \
@@ -180,10 +135,8 @@ SOURCES_CXX += $(GPUCOMMONDIR)/TextureDecoder.cpp \
 				$(GPUDIR)/GLES/StencilBufferGLES.cpp \
 				$(EXTDIR)/native/base/backtrace.cpp \
 				$(EXTDIR)/native/base/buffer.cpp \
-				$(EXTDIR)/native/base/colorutil.cpp \
 				$(EXTDIR)/native/base/display.cpp \
 				$(EXTDIR)/native/base/stringutil.cpp \
-				$(EXTDIR)/native/base/logging.cpp \
 				$(EXTDIR)/native/base/timeutil.cpp \
 				$(EXTDIR)/native/data/compression.cpp \
 				$(EXTDIR)/glslang/OGLCompilersDLL/InitializeDll.cpp \
@@ -238,57 +191,37 @@ SOURCES_CXX += $(COMMONDIR)/MemArenaPosix.cpp \
 	       $(EXTDIR)/glslang/glslang/OSDependent/Unix/ossource.cpp
 endif
 
-SOURCES_C   += $(NATIVEDIR)/gfx_es2/gl3stub.c \
-				$(NATIVEDIR)/math/fast/fast_math.c \
-				$(NATIVEDIR)/math/fast/fast_matrix.c
-SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
-	       $(NATIVEDIR)/math/dataconv.cpp \
+SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(NATIVEDIR)/file/fd_util.cpp \
 	       $(NATIVEDIR)/file/file_util.cpp \
 	       $(NATIVEDIR)/file/ini_file.cpp \
-	       $(NATIVEDIR)/file/path.cpp \
 	       $(NATIVEDIR)/file/free.cpp \
 	       $(NATIVEDIR)/file/zip_read.cpp \
 	       $(NATIVEDIR)/gfx/gl_debug_log.cpp \
 	       $(NATIVEDIR)/gfx/GLStateCache.cpp \
 	       $(NATIVEDIR)/gfx/texture_atlas.cpp \
-	       $(NATIVEDIR)/gfx_es2/draw_buffer.cpp \
-	       $(NATIVEDIR)/gfx_es2/draw_text.cpp \
+			 $(NATIVEDIR)/gfx_es2/draw_buffer.cpp \
 	       $(NATIVEDIR)/gfx_es2/gpu_features.cpp \
 	       $(NATIVEDIR)/gfx_es2/glsl_program.cpp \
 	       $(NATIVEDIR)/i18n/i18n.cpp \
 	       $(NATIVEDIR)/image/zim_load.cpp \
-	       $(NATIVEDIR)/image/zim_save.cpp \
 	       $(NATIVEDIR)/image/png_load.cpp \
-	       $(NATIVEDIR)/input/gesture_detector.cpp \
 	       $(NATIVEDIR)/input/input_state.cpp \
-	       $(NATIVEDIR)/math/curves.cpp \
 	       $(NATIVEDIR)/math/expression_parser.cpp \
-	       $(NATIVEDIR)/math/lin/plane.cpp \
 	       $(NATIVEDIR)/math/lin/quat.cpp \
-	       $(NATIVEDIR)/math/lin/vec3.cpp \
 	       $(NATIVEDIR)/math/lin/matrix4x4.cpp \
-	       $(NATIVEDIR)/math/math_util.cpp \
 	       $(NATIVEDIR)/net/http_client.cpp \
 	       $(NATIVEDIR)/net/resolve.cpp \
 	       $(NATIVEDIR)/net/url.cpp \
-	       $(NATIVEDIR)/profiler/profiler.cpp \
 	       $(NATIVEDIR)/thin3d/thin3d.cpp \
 	       $(NATIVEDIR)/thin3d/thin3d_gl.cpp \
-	       $(NATIVEDIR)/thread/prioritizedworkqueue.cpp \
 	       $(NATIVEDIR)/thread/threadutil.cpp \
-	       $(NATIVEDIR)/ui/screen.cpp \
 	       $(NATIVEDIR)/thread/threadpool.cpp \
 	       $(NATIVEDIR)/ui/ui.cpp \
-	       $(NATIVEDIR)/ui/ui_context.cpp \
-	       $(NATIVEDIR)/ui/ui_screen.cpp \
-	       $(NATIVEDIR)/ui/ui_tween.cpp \
-	       $(NATIVEDIR)/ui/view.cpp \
-	       $(NATIVEDIR)/ui/viewgroup.cpp \
+			 $(NATIVEDIR)/ui/view.cpp \
 	       $(NATIVEDIR)/util/hash/hash.cpp \
 	       $(NATIVEDIR)/util/text/utf8.cpp \
 	       $(NATIVEDIR)/util/text/parsers.cpp \
-	       $(NATIVEDIR)/util/text/wrap_text.cpp \
 	       $(NATIVEDIR)/ext/jpge/jpgd.cpp \
 	       $(NATIVEDIR)/ext/jpge/jpge.cpp \
 	       $(COREDIR)/AVIDump.cpp \
@@ -307,13 +240,11 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(COREDIR)/HDRemaster.cpp \
 	       $(COREDIR)/Debugger/Breakpoints.cpp \
 	       $(COREDIR)/Debugger/SymbolMap.cpp \
-	       $(COREDIR)/Debugger/DisassemblyManager.cpp \
 	       $(COREDIR)/Dialog/PSPDialog.cpp \
 	       $(COREDIR)/Dialog/PSPGamedataInstallDialog.cpp \
 	       $(COREDIR)/Dialog/PSPMsgDialog.cpp \
 	       $(COREDIR)/Dialog/PSPNetconfDialog.cpp \
 	       $(COREDIR)/Dialog/PSPOskDialog.cpp \
-	       $(COREDIR)/Dialog/PSPPlaceholderDialog.cpp \
 	       $(COREDIR)/Dialog/PSPSaveDialog.cpp \
 	       $(COREDIR)/Dialog/PSPScreenshotDialog.cpp \
 	       $(COREDIR)/Dialog/SavedataParam.cpp \
@@ -412,7 +343,6 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(COREDIR)/MIPS/JitCommon/JitCommon.cpp \
 	       $(COREDIR)/MIPS/JitCommon/JitState.cpp \
 	       $(COREDIR)/MIPS/JitCommon/JitBlockCache.cpp \
-	       $(COREDIR)/MIPS/IR/IRAsm.cpp \
 	       $(COREDIR)/MIPS/IR/IRCompALU.cpp \
 	       $(COREDIR)/MIPS/IR/IRCompBranch.cpp \
 	       $(COREDIR)/MIPS/IR/IRCompFPU.cpp \
@@ -432,7 +362,6 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(COREDIR)/MIPS/MIPSDisVFPU.cpp \
 	       $(COREDIR)/MIPS/MIPSInt.cpp \
 	       $(COREDIR)/MIPS/MIPSIntVFPU.cpp \
-	       $(COREDIR)/MIPS/MIPSStackWalk.cpp \
 	       $(COREDIR)/MIPS/MIPSTables.cpp \
 	       $(COREDIR)/MIPS/MIPSVFPUUtils.cpp \
 	       $(COREDIR)/MemMap.cpp \
@@ -442,16 +371,13 @@ SOURCES_CXX += $(EXTDIR)/native/file/chunk_file.cpp \
 	       $(COREDIR)/SaveState.cpp \
 	       $(COREDIR)/Screenshot.cpp \
 	       $(COREDIR)/System.cpp \
-	       $(COREDIR)/Util/GameManager.cpp \
 	       $(COREDIR)/Util/BlockAllocator.cpp \
 	       $(COREDIR)/Util/PPGeDraw.cpp \
 	       $(COREDIR)/Util/ppge_atlas.cpp \
 	       $(COREDIR)/Util/AudioFormat.cpp
 
 SOURCES_CXX +=			$(LIBRETRODIR)/libretro.cpp
-SOURCES_CXX += 		$(LIBRETRODIR)/libretro_osm.cpp
-SOURCES_CXX  += $(LIBRETRODIR)/libretro_version.cpp
-
+SOURCES_CXX +=			$(LIBRETRODIR)/LibretroGraphicsContext.cpp
 
 SOURCES_CXX += $(COREDIR)/HLE/__sceAudio.cpp
 
@@ -532,8 +458,7 @@ endif
 	   CPUFLAGS += -D_M_IX86 -m32 -D_ARCH_32
       endif
 	   SOURCES_CXX += $(GPUDIR)/Software/SamplerX86.cpp
-	   SOURCES_CXX += $(COMMONDIR)/x64Analyzer.cpp \
-						$(COMMONDIR)/x64Emitter.cpp \
+	   SOURCES_CXX += $(COMMONDIR)/x64Emitter.cpp \
 						$(COMMONDIR)/ABI.cpp \
 						$(COMMONDIR)/Thunk.cpp \
 						$(COMMONDIR)/CPUDetect.cpp \
@@ -558,7 +483,6 @@ endif
 
 SOURCES_C += $(EXTDIR)/udis86/decode.c \
 			 $(EXTDIR)/udis86/itab.c \
-			 $(EXTDIR)/udis86/syn-att.c \
 			 $(EXTDIR)/udis86/syn-intel.c \
 			 $(EXTDIR)/udis86/syn.c \
 			 $(EXTDIR)/udis86/udis86.c
@@ -578,7 +502,6 @@ SOURCES_C += $(EXTDIR)/zlib/adler32.c \
 				 $(EXTDIR)/zlib/gzlib.c \
 				 $(EXTDIR)/zlib/gzread.c \
 				 $(EXTDIR)/zlib/gzwrite.c \
-				 $(EXTDIR)/zlib/infback.c \
 				 $(EXTDIR)/zlib/inffast.c \
 				 $(EXTDIR)/zlib/inflate.c \
 				 $(EXTDIR)/zlib/inftrees.c \
@@ -586,3 +509,28 @@ SOURCES_C += $(EXTDIR)/zlib/adler32.c \
 				 $(EXTDIR)/zlib/uncompr.c \
 				 $(EXTDIR)/zlib/zutil.c
 endif
+
+GIT_VERSION_SRC = $(CORE_DIR)/git-version.cpp
+GIT_VERSION_INC = $(CORE_DIR)/git-version.inc
+
+GIT_VERSION := $(shell git describe --always || echo v1.4.2-git)
+ifneq ($(wildcard $(GIT_VERSION_SRC)),)
+   -include $(GIT_VERSION_INC)
+   ifeq ($(GIT_VERSION), $(OLD_GIT_VERSION))
+      GIT_VERSION_NO_UPDATE = 1
+   else
+      GIT_VERSION_NO_UPDATE = $(findstring 1,$(shell grep "PPSSPP_GIT_VERSION_NO_UPDATE" $(GIT_VERSION_SRC)))
+   endif
+endif
+
+ifneq ($(GIT_VERSION_NO_UPDATE),1)
+   $(shell echo -e "OLD_GIT_VERSION := ${GIT_VERSION}\n" > $(GIT_VERSION_INC))
+   $(shell echo -e \
+      "// This is a generated file.\
+      \n\nconst char *PPSSPP_GIT_VERSION = \"${GIT_VERSION}\";\
+      \n\n// If you don't want this file to update/recompile, change to 1.\
+      \n#define PPSSPP_GIT_VERSION_NO_UPDATE 0" \
+      > $(GIT_VERSION_SRC))
+endif
+
+SOURCES_CXX += $(GIT_VERSION_SRC)
