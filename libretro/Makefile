@@ -460,7 +460,7 @@ else
 endif
 
 clean:
-	rm -f $(OBJECTS) $(TARGET) $(CORE_DIR)/git-version.inc $(CORE_DIR)/git-version.cpp
+	rm -f $(OBJECTS) $(TARGET) $(CORE_DIR)/git-version.cpp
 
 .PHONY: clean
 
