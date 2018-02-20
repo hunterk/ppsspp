@@ -25,6 +25,70 @@ INCFLAGS += \
 	-I$(EXTDIR)/xxhash \
 	-I$(EXTDIR)/glew
 
+ifeq ($(PLATFORM_EXT), android)
+	INCFLAGS += -I$(NATIVEDIR)/ext/libzip
+	SOURCES_C += \
+		$(NATIVEDIR)/ext/libzip/mkstemp.c \
+		$(NATIVEDIR)/ext/libzip/zip_add.c \
+		$(NATIVEDIR)/ext/libzip/zip_add_dir.c \
+		$(NATIVEDIR)/ext/libzip/zip_close.c \
+		$(NATIVEDIR)/ext/libzip/zip_delete.c \
+		$(NATIVEDIR)/ext/libzip/zip_dirent.c \
+		$(NATIVEDIR)/ext/libzip/zip_entry_free.c \
+		$(NATIVEDIR)/ext/libzip/zip_entry_new.c \
+		$(NATIVEDIR)/ext/libzip/zip_err_str.c \
+		$(NATIVEDIR)/ext/libzip/zip_error.c \
+		$(NATIVEDIR)/ext/libzip/zip_error_clear.c \
+		$(NATIVEDIR)/ext/libzip/zip_error_get.c \
+		$(NATIVEDIR)/ext/libzip/zip_error_get_sys_type.c \
+		$(NATIVEDIR)/ext/libzip/zip_error_strerror.c \
+		$(NATIVEDIR)/ext/libzip/zip_error_to_str.c \
+		$(NATIVEDIR)/ext/libzip/zip_fclose.c \
+		$(NATIVEDIR)/ext/libzip/zip_file_error_clear.c \
+		$(NATIVEDIR)/ext/libzip/zip_file_error_get.c \
+		$(NATIVEDIR)/ext/libzip/zip_file_get_offset.c \
+		$(NATIVEDIR)/ext/libzip/zip_file_strerror.c \
+		$(NATIVEDIR)/ext/libzip/zip_filerange_crc.c \
+		$(NATIVEDIR)/ext/libzip/zip_fopen.c \
+		$(NATIVEDIR)/ext/libzip/zip_fopen_index.c \
+		$(NATIVEDIR)/ext/libzip/zip_fread.c \
+		$(NATIVEDIR)/ext/libzip/zip_free.c \
+		$(NATIVEDIR)/ext/libzip/zip_get_archive_comment.c \
+		$(NATIVEDIR)/ext/libzip/zip_get_archive_flag.c \
+		$(NATIVEDIR)/ext/libzip/zip_get_file_comment.c \
+		$(NATIVEDIR)/ext/libzip/zip_get_name.c \
+		$(NATIVEDIR)/ext/libzip/zip_get_num_files.c \
+		$(NATIVEDIR)/ext/libzip/zip_memdup.c \
+		$(NATIVEDIR)/ext/libzip/zip_name_locate.c \
+		$(NATIVEDIR)/ext/libzip/zip_new.c \
+		$(NATIVEDIR)/ext/libzip/zip_open.c \
+		$(NATIVEDIR)/ext/libzip/zip_rename.c \
+		$(NATIVEDIR)/ext/libzip/zip_replace.c \
+		$(NATIVEDIR)/ext/libzip/zip_set_archive_comment.c \
+		$(NATIVEDIR)/ext/libzip/zip_set_archive_flag.c \
+		$(NATIVEDIR)/ext/libzip/zip_set_file_comment.c \
+		$(NATIVEDIR)/ext/libzip/zip_set_name.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_buffer.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_file.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_filep.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_free.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_function.c \
+		$(NATIVEDIR)/ext/libzip/zip_source_zip.c \
+		$(NATIVEDIR)/ext/libzip/zip_stat.c \
+		$(NATIVEDIR)/ext/libzip/zip_stat_index.c \
+		$(NATIVEDIR)/ext/libzip/zip_stat_init.c \
+		$(NATIVEDIR)/ext/libzip/zip_strerror.c \
+		$(NATIVEDIR)/ext/libzip/zip_unchange.c \
+		$(NATIVEDIR)/ext/libzip/zip_unchange_all.c \
+		$(NATIVEDIR)/ext/libzip/zip_unchange_archive.c \
+		$(NATIVEDIR)/ext/libzip/zip_unchange_data.c
+
+	SOURCES_C +=\
+		$(NATIVEDIR)/gfx_es2/gl3stub.c \
+		$(NATIVEDIR)/math/fast/fast_math.c \
+		$(NATIVEDIR)/math/fast/fast_matrix.c
+endif
+
 SOURCES_C += $(EXTDIR)/glew/glew_libretro.c
 
 SOURCES_C += \
