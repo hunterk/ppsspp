@@ -593,12 +593,12 @@ ifneq (,$(findstring $(GIT_VERSION),$(shell grep char $(GIT_VERSION_SRC))))
 endif
 
 ifneq ($(GIT_VERSION_NO_UPDATE),1)
-   $(shell echo -e \
-      '// This is a generated file.\
-      \n\nconst char *PPSSPP_GIT_VERSION = "${GIT_VERSION}";\
-      \n\n// If you don`t want this file to update/recompile, change to 1.\
-      \n#define PPSSPP_GIT_VERSION_NO_UPDATE 0' \
-      > $(GIT_VERSION_SRC))
+   $(shell echo '// This is a generated file.' > $(GIT_VERSION_SRC))
+   $(shell echo >> $(GIT_VERSION_SRC))
+   $(shell echo 'const char *PPSSPP_GIT_VERSION = "${GIT_VERSION}";' >> $(GIT_VERSION_SRC))
+   $(shell echo >> $(GIT_VERSION_SRC))
+   $(shell echo "// If you don't want this file to update/recompile, change to 1." >> $(GIT_VERSION_SRC))
+   $(shell echo '#define PPSSPP_GIT_VERSION_NO_UPDATE 0' >> $(GIT_VERSION_SRC))
 endif
 
 SOURCES_CXX += $(GIT_VERSION_SRC)

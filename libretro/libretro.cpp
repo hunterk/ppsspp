@@ -46,23 +46,23 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 retro_environment_t environ_cb;
-static LibretroGraphicsContext* ctx;
+static LibretroGraphicsContext *ctx;
 
 class LibretroHost : public Host {
 	public:
 	LibretroHost() {}
-	bool InitGraphics(std::string* error_message, GraphicsContext** ctx) override { return true; }
+	bool InitGraphics(std::string *error_message, GraphicsContext **ctx) override { return true; }
 	void ShutdownGraphics() override {}
 	void InitSound() override {}
 	void UpdateSound() override
-   {
-      static int16_t audio[512 * 2];
-      extern int hostAttemptBlockSize;
-      assert(hostAttemptBlockSize <= sizeof(audio) / (sizeof(int16_t) * 2));
+	{
+		static int16_t audio[512 * 2];
+		extern int hostAttemptBlockSize;
+		assert(hostAttemptBlockSize <= sizeof(audio) / (sizeof(int16_t) * 2));
 
-      int samples = __AudioMix(audio, hostAttemptBlockSize, SAMPLERATE);
-      audio_batch_cb(audio, samples);
-   }
+		int samples = __AudioMix(audio, hostAttemptBlockSize, SAMPLERATE);
+		audio_batch_cb(audio, samples);
+	}
 	void ShutdownSound() override {}
 	bool IsDebuggingEnabled() override { return false; }
 	bool AttemptLoadSymbolMap() override { return false; }
@@ -71,7 +71,7 @@ class LibretroHost : public Host {
 class PrintfLogger : public LogListener {
 	public:
 	PrintfLogger(retro_log_callback log) : log_(log.log) {}
-	void Log(const LogMessage& message)
+	void Log(const LogMessage &message)
 	{
 		switch (message.level)
 		{
@@ -99,27 +99,27 @@ class PrintfLogger : public LogListener {
 	private:
 	retro_log_printf_t log_;
 };
-static PrintfLogger* printfLogger;
+static PrintfLogger *printfLogger;
 
 template <typename T> class RetroOption {
 	public:
-	RetroOption(const char* id, const char* name, std::initializer_list<std::pair<const char*, T>> list) : id_(id), name_(name), list_(list.begin(), list.end()) {}
-   RetroOption(const char* id, const char* name, std::initializer_list<const char*> list) : id_(id), name_(name)
+	RetroOption(const char *id, const char *name, std::initializer_list<std::pair<const char *, T>> list) : id_(id), name_(name), list_(list.begin(), list.end()) {}
+	RetroOption(const char *id, const char *name, std::initializer_list<const char *> list) : id_(id), name_(name)
 	{
 		for (auto option : list)
 			list_.push_back({ option, (T)list_.size() });
 	}
-   RetroOption(const char* id, const char* name, T first, std::initializer_list<const char*> list) : id_(id), name_(name)
+	RetroOption(const char *id, const char *name, T first, std::initializer_list<const char *> list) : id_(id), name_(name)
 	{
 		for (auto option : list)
-			list_.push_back({ option, first + (int)list_.size()});
+			list_.push_back({ option, first + (int)list_.size() });
 	}
-   RetroOption(const char* id, const char* name, T first, int count, int step = 1) : id_(id), name_(name)
+	RetroOption(const char *id, const char *name, T first, int count, int step = 1) : id_(id), name_(name)
 	{
-		for (T i = first; i < first + count  ; i += step)
-			list_.push_back({ std::to_string(i), i});
+		for (T i = first; i < first + count; i += step)
+			list_.push_back({ std::to_string(i), i });
 	}
-	RetroOption(const char* id, const char* name, bool initial) : id_(id), name_(name)
+	RetroOption(const char *id, const char *name, bool initial) : id_(id), name_(name)
 	{
 		list_.push_back({ initial ? "enabled" : "disabled", initial });
 		list_.push_back({ !initial ? "enabled" : "disabled", !initial });
@@ -130,7 +130,7 @@ template <typename T> class RetroOption {
 		{
 			options_ = name_;
 			options_.push_back(';');
-			for (auto& option : list_)
+			for (auto &option : list_)
 			{
 				if (option.first == list_.begin()->first)
 					options_ += std::string(" ") + option.first;
@@ -140,7 +140,7 @@ template <typename T> class RetroOption {
 		}
 		return { id_, options_.c_str() };
 	}
-	bool Update(T* dest)
+	bool Update(T *dest)
 	{
 		retro_variable var{ id_ };
 		T val = list_.front().second;
@@ -167,8 +167,8 @@ template <typename T> class RetroOption {
 	}
 
 	private:
-	const char* id_;
-	const char* name_;
+	const char *id_;
+	const char *name_;
 	std::string options_;
 	std::vector<std::pair<std::string, T>> list_;
 };
@@ -182,7 +182,7 @@ static RetroOption<bool> ppsspp_auto_frameskip("ppsspp_auto_frameskip", "Auto Fr
 static RetroOption<int> ppsspp_frameskip("ppsspp_frameskip", "Frameskip", 0, 10);
 static RetroOption<int> ppsspp_force_max_fps("ppsspp_force_max_fps", "Force Max FPS", { { "disabled", 0 }, { "enabled", 60 } });
 static RetroOption<int> ppsspp_audio_latency("ppsspp_audio_latency", "Audio latency", { "low", "medium", "high" });
-static RetroOption<int> ppsspp_internal_resolution("ppsspp_internal_resolution", "Internal Resolution", 1, { "480x272", "960x544",  "1440x816", "1920x1088", "2400x1360", "2880x1632", "3360x1904", "3840x2176", "4320x2448",  "4800x2720" });
+static RetroOption<int> ppsspp_internal_resolution("ppsspp_internal_resolution", "Internal Resolution", 1, { "480x272", "960x544", "1440x816", "1920x1088", "2400x1360", "2880x1632", "3360x1904", "3840x2176", "4320x2448", "4800x2720" });
 static RetroOption<int> ppsspp_button_preference("ppsspp_button_preference", "Confirmation Button", { { "cross", PSP_SYSTEMPARAM_BUTTON_CROSS }, { "circle", PSP_SYSTEMPARAM_BUTTON_CIRCLE } });
 static RetroOption<bool> ppsspp_fast_memory("ppsspp_fast_memory", "Fast Memory (Speedhack)", true);
 static RetroOption<bool> ppsspp_block_transfer_gpu("ppsspp_block_transfer_gpu", "Block Transfer GPU", true);
@@ -225,7 +225,7 @@ void retro_set_environment(retro_environment_t cb)
 
 	environ_cb = cb;
 
-	cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars.data());
+	cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void *)vars.data());
 }
 
 static int get_language_auto(void)
@@ -264,7 +264,7 @@ static int get_language_auto(void)
 	}
 }
 
-static void check_variables(CoreParameter& coreParam)
+static void check_variables(CoreParameter &coreParam)
 {
 	bool updated = false;
 
@@ -288,9 +288,9 @@ static void check_variables(CoreParameter& coreParam)
 	ppsspp_locked_cpu_speed.Update(&g_Config.iLockedCPUSpeed);
 	ppsspp_rendering_mode.Update(&g_Config.iRenderingMode);
 	ppsspp_force_max_fps.Update(&g_Config.iForceMaxEmulatedFPS);
-   ppsspp_cpu_core.Update((CPUCore*)&g_Config.iCpuCore);
+	ppsspp_cpu_core.Update((CPUCore *)&g_Config.iCpuCore);
 
-   ppsspp_language.Update(&g_Config.iLanguage);
+	ppsspp_language.Update(&g_Config.iLanguage);
 	if (g_Config.iLanguage < 0)
 		g_Config.iLanguage = get_language_auto();
 
@@ -325,14 +325,14 @@ void retro_init(void)
    g_Config.Load("");
 #endif
 
-   g_Config.bEnableLogging = true;
+	g_Config.bEnableLogging = true;
 	g_Config.bFrameSkipUnthrottle = false;
 	g_Config.bMemStickInserted = PSP_MEMORYSTICK_STATE_INSERTED;
 	g_Config.iGlobalVolume = VOLUME_MAX - 1;
 	g_Config.bEnableSound = true;
 	g_Config.bAudioResampler = false;
 
-   LogManager::Init();
+	LogManager::Init();
 
 	host = new LibretroHost;
 
@@ -340,22 +340,22 @@ void retro_init(void)
 	if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log))
 	{
 		printfLogger = new PrintfLogger(log);
-		LogManager* logman = LogManager::GetInstance();
+		LogManager *logman = LogManager::GetInstance();
 		logman->RemoveListener(logman->GetConsoleListener());
-      logman->RemoveListener(logman->GetDebuggerListener());
-      logman->ChangeFileLog(nullptr);
+		logman->RemoveListener(logman->GetDebuggerListener());
+		logman->ChangeFileLog(nullptr);
 		logman->AddListener(printfLogger);
 	}
 }
 
 void retro_deinit(void)
 {
-   LogManager::Shutdown();
+	LogManager::Shutdown();
 
-   delete printfLogger;
+	delete printfLogger;
 	printfLogger = nullptr;
 
-   delete host;
+	delete host;
 	host = nullptr;
 }
 
@@ -365,7 +365,7 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
 	(void)device;
 }
 
-void retro_get_system_info(struct retro_system_info* info)
+void retro_get_system_info(struct retro_system_info *info)
 {
 	*info = {};
 	info->library_name = "PPSSPP";
@@ -374,7 +374,7 @@ void retro_get_system_info(struct retro_system_info* info)
 	info->valid_extensions = "elf|iso|cso|prx|pbp";
 }
 
-void retro_get_system_av_info(struct retro_system_av_info* info)
+void retro_get_system_av_info(struct retro_system_av_info *info)
 {
 	*info = {};
 	info->timing.fps = 60.0f / 1.001f;
@@ -389,7 +389,7 @@ void retro_get_system_av_info(struct retro_system_av_info* info)
 
 unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 
-bool retro_load_game(const struct retro_game_info* game)
+bool retro_load_game(const struct retro_game_info *game)
 {
 	struct retro_input_descriptor desc[] = {
 		{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT, "D-Pad Left" },
@@ -410,22 +410,22 @@ bool retro_load_game(const struct retro_game_info* game)
 	};
 	environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
 
-   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
-   if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
+	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
+	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
 	{
 		ERROR_LOG(BOOT, "XRGB8888 is not supported.\n");
 		return false;
 	}
 
-   const char* nickname = NULL;
+	const char *nickname = NULL;
 	if (environ_cb(RETRO_ENVIRONMENT_GET_USERNAME, &nickname) && nickname)
 		g_Config.sNickName = std::string(nickname);
 
-   const char* dir_ptr = NULL;
-   static std::string retro_base_dir;
-   static std::string retro_save_dir;
+	const char *dir_ptr = NULL;
+	static std::string retro_base_dir;
+	static std::string retro_save_dir;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir_ptr) && dir_ptr)
+	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir_ptr) && dir_ptr)
 	{
 		retro_base_dir = dir_ptr;
 		// Make sure that we don't have any lingering slashes, etc, as they break Windows.
@@ -447,15 +447,15 @@ bool retro_load_game(const struct retro_game_info* game)
 		retro_save_dir = retro_save_dir.substr(0, last) + DIR_SEP;
 	}
 
-   if (retro_base_dir.empty())
-      retro_base_dir = File::GetDir(game->path);
+	if (retro_base_dir.empty())
+		retro_base_dir = File::GetDir(game->path);
 
-   retro_base_dir += "PPSSPP" DIR_SEP;
+	retro_base_dir += "PPSSPP" DIR_SEP;
 
-   if (retro_save_dir.empty())
+	if (retro_save_dir.empty())
 		retro_save_dir = File::GetDir(game->path);
 
-   g_Config.currentDirectory = retro_base_dir;
+	g_Config.currentDirectory = retro_base_dir;
 	g_Config.externalDirectory = retro_base_dir;
 	g_Config.memStickDirectory = retro_save_dir;
 	g_Config.flash0Directory = retro_base_dir + "flash0" DIR_SEP;
@@ -463,9 +463,9 @@ bool retro_load_game(const struct retro_game_info* game)
 
 	VFSRegister("", new DirectoryAssetReader(retro_base_dir.c_str()));
 
-   coreState = CORE_POWERUP;
-   ctx = LibretroGraphicsContext::CreateGraphicsContext();
-   INFO_LOG(G3D, "Using %s backend", ctx->Ident());
+	coreState = CORE_POWERUP;
+	ctx = LibretroGraphicsContext::CreateGraphicsContext();
+	INFO_LOG(G3D, "Using %s backend", ctx->Ident());
 
 	CoreParameter coreParam = {};
 	coreParam.enableSound = true;
@@ -475,9 +475,9 @@ bool retro_load_game(const struct retro_game_info* game)
 	coreParam.printfEmuLog = true;
 	coreParam.headLess = true;
 	coreParam.unthrottle = true;
-   coreParam.graphicsContext = ctx;
+	coreParam.graphicsContext = ctx;
 	coreParam.gpuCore = ctx->GetGPUCore();
-   coreParam.cpuCore = CPUCore::JIT;
+	coreParam.cpuCore = CPUCore::JIT;
 	check_variables(coreParam);
 
 #if 0
@@ -611,7 +611,7 @@ void retro_run(void)
 
 unsigned retro_get_region(void) { return RETRO_REGION_NTSC; }
 
-bool retro_load_game_special(unsigned type, const struct retro_game_info* info, size_t num)
+bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num)
 {
 	(void)type;
 	(void)info;
@@ -622,7 +622,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info* info, 
 namespace SaveState {
 struct SaveStart
 {
-	void DoState(PointerWrap& p);
+	void DoState(PointerWrap &p);
 };
 }   // namespace SaveState
 
@@ -632,20 +632,20 @@ size_t retro_serialize_size(void)
 	return CChunkFileReader::MeasurePtr(state);
 }
 
-bool retro_serialize(void* data, size_t size)
+bool retro_serialize(void *data, size_t size)
 {
 	SaveState::SaveStart state;
 	assert(CChunkFileReader::MeasurePtr(state) == size);
-	return CChunkFileReader::SavePtr((u8*)data, state) == CChunkFileReader::ERROR_NONE;
+	return CChunkFileReader::SavePtr((u8 *)data, state) == CChunkFileReader::ERROR_NONE;
 }
 
-bool retro_unserialize(const void* data, size_t size)
+bool retro_unserialize(const void *data, size_t size)
 {
 	SaveState::SaveStart state;
-	return CChunkFileReader::LoadPtr((u8*)data, state) == CChunkFileReader::ERROR_NONE;
+	return CChunkFileReader::LoadPtr((u8 *)data, state) == CChunkFileReader::ERROR_NONE;
 }
 
-void* retro_get_memory_data(unsigned id)
+void *retro_get_memory_data(unsigned id)
 {
 	(void)id;
 	return NULL;
@@ -659,7 +659,7 @@ size_t retro_get_memory_size(unsigned id)
 
 void retro_cheat_reset(void) {}
 
-void retro_cheat_set(unsigned index, bool enabled, const char* code)
+void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
 	(void)index;
 	(void)enabled;
@@ -681,7 +681,7 @@ int System_GetPropertyInt(SystemProperty prop)
 
 std::string System_GetProperty(SystemProperty prop) { return ""; }
 
-void System_SendMessage(const char* command, const char* parameter) {}
-void NativeUpdate() { }
+void System_SendMessage(const char *command, const char *parameter) {}
+void NativeUpdate() {}
 void NativeRender(GraphicsContext *graphicsContext) {}
-void NativeResized() { }
+void NativeResized() {}

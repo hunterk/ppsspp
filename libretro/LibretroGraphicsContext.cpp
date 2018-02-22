@@ -72,7 +72,7 @@ class GLContext : public HWRenderContext {
 		hw_render_.bottom_left_origin = true;
 	}
 
-   bool Init() override
+	bool Init() override
 	{
 		if (!HWRenderContext::Init())
 			return false;
@@ -81,7 +81,7 @@ class GLContext : public HWRenderContext {
 		return true;
 	}
 
-   void Shutdown() override
+	void Shutdown() override
 	{
 #if 0
       NativeShutdownGraphics();
@@ -114,7 +114,7 @@ class GLContext : public HWRenderContext {
 	}
 
 	GPUCore GetGPUCore() override { return GPUCORE_GLES; }
-   const char* Ident() override { return "OpenGL"; }
+	const char *Ident() override { return "OpenGL"; }
 };
 
 class VKContext : public HWRenderContext {
@@ -131,7 +131,7 @@ class VKContext : public HWRenderContext {
 			GetApplicationInfo,
 			NULL,
 		};
-		environ_cb(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, (void*)&iface);
+		environ_cb(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, (void *)&iface);
 
 		return true;
 	}
@@ -158,16 +158,16 @@ class VKContext : public HWRenderContext {
 	}
 
 	GPUCore GetGPUCore() override { return GPUCORE_VULKAN; }
-   const char* Ident() override { return "Vulkan"; }
+	const char *Ident() override { return "Vulkan"; }
 
 	private:
-	static const VkApplicationInfo* GetApplicationInfo(void)
+	static const VkApplicationInfo *GetApplicationInfo(void)
 	{
 		static const VkApplicationInfo info = { VK_STRUCTURE_TYPE_APPLICATION_INFO, NULL, "PPSSPP", 0, "PPSSPP-vulkan", 0, 0 };
 		return &info;
 	}
 
-	retro_hw_render_interface_vulkan* vulkan = nullptr;
+	retro_hw_render_interface_vulkan *vulkan = nullptr;
 };
 
 #ifdef _WIN32
@@ -183,7 +183,7 @@ class D3D9Context : public HWRenderContext {
 	}
 #endif
 	GPUCore GetGPUCore() override { return GPUCORE_DIRECTX9; }
-   const char* Ident() override { return "DirectX 9"; }
+	const char *Ident() override { return "DirectX 9"; }
 };
 
 class D3D11Context : public HWRenderContext {
@@ -198,7 +198,7 @@ class D3D11Context : public HWRenderContext {
 	}
 #endif
 	GPUCore GetGPUCore() override { return GPUCORE_DIRECTX11; }
-   const char* Ident() override { return "DirectX 11"; }
+	const char *Ident() override { return "DirectX 11"; }
 };
 #endif
 
@@ -208,7 +208,7 @@ class SoftwareContext : public LibretroGraphicsContext {
 	bool Init() override { return true; }
 	void SwapBuffers() override { video_cb(NULL, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight, 0); }
 	GPUCore GetGPUCore() override { return GPUCORE_SOFTWARE; }
-   const char* Ident() override { return "Software"; }
+	const char *Ident() override { return "Software"; }
 };
 
 class NullContext : public LibretroGraphicsContext {
@@ -218,14 +218,14 @@ class NullContext : public LibretroGraphicsContext {
 	bool Init() override { return true; }
 	void SwapBuffers() override { video_cb(NULL, 0, 0, 0); }
 	GPUCore GetGPUCore() override { return GPUCORE_NULL; }
-   const char* Ident() override { return "NULL"; }
+	const char *Ident() override { return "NULL"; }
 };
 
-LibretroGraphicsContext* LibretroGraphicsContext::CreateGraphicsContext()
+LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext()
 {
 	libretro_get_proc_address = NULL;
 
-	LibretroGraphicsContext* ctx;
+	LibretroGraphicsContext *ctx;
 
 	ctx = new GLContext();
 	if (ctx->Init())

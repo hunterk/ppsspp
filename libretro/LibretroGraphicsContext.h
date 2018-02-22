@@ -14,18 +14,18 @@ class LibretroGraphicsContext : public GraphicsContext {
 	virtual bool Init() = 0;
 	virtual void InitDrawContext() {}
 	virtual void SetRenderTarget() {}
-   virtual GPUCore GetGPUCore() = 0;
-   virtual const char* Ident() = 0;
+	virtual GPUCore GetGPUCore() = 0;
+	virtual const char *Ident() = 0;
 
-   void Shutdown() override {}
+	void Shutdown() override {}
 	void SwapInterval(int interval) override {}
 	void Resize() override {}
-	Draw::DrawContext* GetDrawContext() override { return draw_; }
+	Draw::DrawContext *GetDrawContext() override { return draw_; }
 
-	static LibretroGraphicsContext* CreateGraphicsContext();
+	static LibretroGraphicsContext *CreateGraphicsContext();
 
 	protected:
-	Draw::DrawContext* draw_ = nullptr;
+	Draw::DrawContext *draw_ = nullptr;
 };
 
 extern "C" retro_hw_get_proc_address_t libretro_get_proc_address;
