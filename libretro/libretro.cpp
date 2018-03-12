@@ -195,6 +195,7 @@ static RetroOption<bool> ppsspp_vertex_cache("ppsspp_vertex_cache", "Vertex Cach
 static RetroOption<bool> ppsspp_separate_io_thread("ppsspp_separate_io_thread", "IO Threading", false);
 static RetroOption<bool> ppsspp_unsafe_func_replacements("ppsspp_unsafe_func_replacements", "Unsafe FuncReplacements", true);
 static RetroOption<bool> ppsspp_sound_speedhack("ppsspp_sound_speedhack", "Sound Speedhack", false);
+static RetroOption<bool> ppsspp_cheats("ppsspp_cheats", "Internal Cheats Support", false);
 
 void retro_set_environment(retro_environment_t cb)
 {
@@ -221,6 +222,7 @@ void retro_set_environment(retro_environment_t cb)
 	vars.push_back(ppsspp_separate_io_thread.GetOptions());
 	vars.push_back(ppsspp_unsafe_func_replacements.GetOptions());
 	vars.push_back(ppsspp_sound_speedhack.GetOptions());
+	vars.push_back(ppsspp_cheats.GetOptions());
 	vars.push_back({});
 
 	environ_cb = cb;
@@ -285,6 +287,7 @@ static void check_variables(CoreParameter &coreParam)
 	ppsspp_separate_io_thread.Update(&g_Config.bSeparateIOThread);
 	ppsspp_unsafe_func_replacements.Update(&g_Config.bFuncReplacements);
 	ppsspp_sound_speedhack.Update(&g_Config.bSoundSpeedHack);
+	ppsspp_cheats.Update(&g_Config.bEnableCheats);
 	ppsspp_locked_cpu_speed.Update(&g_Config.iLockedCPUSpeed);
 	ppsspp_rendering_mode.Update(&g_Config.iRenderingMode);
 	ppsspp_force_max_fps.Update(&g_Config.iForceMaxEmulatedFPS);
@@ -331,6 +334,7 @@ void retro_init(void)
 	g_Config.iGlobalVolume = VOLUME_MAX - 1;
 	g_Config.bEnableSound = true;
 	g_Config.bAudioResampler = false;
+	g_Config.iCwCheatRefreshRate = 60;
 
 	LogManager::Init();
 
