@@ -316,8 +316,8 @@ protected:
 	bool debugRecording_;
 	bool interruptsEnabled_;
 	bool resized_;
-	DrawType lastDraw_;
-	GEPrimitiveType lastPrim_;
+	DrawType lastDraw_ = DRAW_UNKNOWN;
+	GEPrimitiveType lastPrim_ = GE_PRIM_INVALID;
 
 	// No idea how big this buffer needs to be.
 	enum {
