@@ -274,12 +274,12 @@ VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkP
 		if (pImageMemoryBarriers[i].oldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 		{
 			barriers[i].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			barriers[i].srcAccessMask |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+			barriers[i].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		}
 		if (pImageMemoryBarriers[i].newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 		{
 			barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			barriers[i].dstAccessMask |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+			barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		}
 	}
 	return vkCmdPipelineBarrier_org(commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, barriers);
@@ -434,6 +434,7 @@ static void context_reset_vulkan(void)
 
 	GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
 }
+
 static void context_destroy_vulkan(void)
 {
 	LibretroHWRenderContext::context_destroy();
