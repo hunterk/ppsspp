@@ -11,8 +11,9 @@ class LibretroVulkanContext : public LibretroHWRenderContext {
 #endif
 	}
 	~LibretroVulkanContext() override { Shutdown(); }
-	bool Init() override;
+	bool Init() override;	
 	void Shutdown() override;
+	void SwapBuffers() override;
 
 	void *GetAPIContext() override;
 	void CreateDrawContext() override;

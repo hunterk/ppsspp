@@ -1,4 +1,7 @@
 
+#include <mutex>
+#include <condition_variable>
+
 #include "Common/Vulkan/VulkanLoader.h"
 #include "Common/Vulkan/VulkanContext.h"
 #include "Common/Vulkan/VulkanDebug.h"
@@ -34,7 +37,7 @@ PFN_vkQueueWaitIdle vkQueueWaitIdle_org;
 PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
 PFN_vkCreateRenderPass vkCreateRenderPass_org;
 
-#define VK_SWAPCHAINS_MAX 32
+#define VULKAN_MAX_SWAPCHAIN_IMAGES		8
 struct VkSwapchainKHR_T
 {
 	uint32_t count;
@@ -43,7 +46,10 @@ struct VkSwapchainKHR_T
 		VkImage handle;
 		VkDeviceMemory memory;
 		retro_vulkan_image retro_image;
-	} images[VK_SWAPCHAINS_MAX];
+	} images[VULKAN_MAX_SWAPCHAIN_IMAGES];
+	std::mutex mutex;
+	std::condition_variable condVar;
+	int current_index;
 };
 static VkSwapchainKHR_T chain;
 
@@ -106,6 +112,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 		chain.count++;
 		swapchain_mask >>= 1;
 	}
+	assert(chain.count <= VULKAN_MAX_SWAPCHAIN_IMAGES);
 
 	for (uint32_t i = 0; i < chain.count; i++)
 	{
@@ -160,6 +167,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 		chain.images[i].retro_image.image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
+	chain.current_index = -1;
 	*pSwapchain = &chain;
 
 	return VK_SUCCESS;
@@ -171,7 +179,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkS
 	{
 		for (int i = 0; i < swapchain->count; i++)
 			pSwapchainImages[i] = swapchain->images[i].handle;
-	}
+	}	
 
 	return VK_SUCCESS;
 }
@@ -185,9 +193,29 @@ static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwa
 
 static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
 {
+	std::unique_lock<std::mutex> lock(pPresentInfo->pSwapchains[0]->mutex);
+#if 0
+	if(chain.current_index >= 0)
+		chain.condVar.wait(lock);
+#endif
+
+	chain.current_index = pPresentInfo->pImageIndices[0];
 	Libretro::vulkan->set_image(Libretro::vulkan->handle, &pPresentInfo->pSwapchains[0]->images[pPresentInfo->pImageIndices[0]].retro_image, 0, nullptr, Libretro::vulkan->queue_index);
+	pPresentInfo->pSwapchains[0]->condVar.notify_all();
 
 	return VK_SUCCESS;
+}
+
+void LibretroVulkanContext::SwapBuffers()
+{
+	std::unique_lock<std::mutex> lock(chain.mutex);
+	if(chain.current_index < 0)
+		chain.condVar.wait(lock);
+	LibretroHWRenderContext::SwapBuffers();
+#if 0
+	chain.current_index = -1;
+	chain.condVar.notify_all();
+#endif
 }
 
 static VKAPI_ATTR void VKAPI_CALL DestroyInstance(VkInstance instance, const VkAllocationCallbacks *pAllocator) {}
@@ -202,7 +230,9 @@ static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(VkDevice device, VkSwapcha
 		vkFreeMemory(device, chain.images[i].memory, pAllocator);
 	}
 
-	memset(&chain, 0x00, sizeof(chain));
+	memset(&chain.images, 0x00, sizeof(chain.images));
+	chain.count = 0;
+	chain.current_index = -1;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence)
@@ -371,22 +401,38 @@ static void destroy_device(void)
 	vk->DestroyInstance();
 	delete vk;
 	vk = nullptr;
+
+	finalize_glslang();
 }
 
 static void context_reset_vulkan(void)
 {
 	INFO_LOG(G3D, "Context reset");
-	if (gpu)
-		gpu->DeviceRestore();
-	else
+	assert(!gpu);
+	assert(!Libretro::ctx->GetDrawContext());
+
+	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&Libretro::vulkan) || !Libretro::vulkan)
 	{
-		if (!Libretro::ctx->GetDrawContext())
-		{
-			Libretro::ctx->CreateDrawContext();
-			PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
-		}
-		GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
+		ERROR_LOG(G3D, "Failed to get HW rendering interface!\n");
+		return;
 	}
+	if (Libretro::vulkan->interface_version != RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION)
+	{
+		ERROR_LOG(G3D, "HW render interface mismatch, expected %u, got %u!\n", RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION, Libretro::vulkan->interface_version);
+		Libretro::vulkan = NULL;
+		return;
+	}
+
+	vk->ReinitSurface(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+
+	if (!vk->InitSwapchain())
+		return;
+
+	Libretro::ctx->CreateDrawContext();
+	PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
+	Libretro::ctx->GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, vk->GetBackbufferWidth(), vk->GetBackbufferHeight());
+
+	GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
 }
 static void context_destroy_vulkan(void)
 {
@@ -419,7 +465,7 @@ bool LibretroVulkanContext::Init()
 	if (!LibretroHWRenderContext::Init())
 		return false;
 
-	static const struct retro_hw_render_context_negotiation_interface_vulkan iface = { RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN, RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION, GetApplicationInfo, create_device, destroy_device };
+	static const struct retro_hw_render_context_negotiation_interface_vulkan iface = { RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN, RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION, GetApplicationInfo, create_device, nullptr };
 	Libretro::environ_cb(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, (void *)&iface);
 
 	return true;
@@ -437,24 +483,6 @@ void *LibretroVulkanContext::GetAPIContext()
 
 void LibretroVulkanContext::CreateDrawContext()
 {
-	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&Libretro::vulkan) || !Libretro::vulkan)
-	{
-		ERROR_LOG(G3D, "Failed to get HW rendering interface!\n");
-		return;
-	}
-	if (Libretro::vulkan->interface_version != RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION)
-	{
-		ERROR_LOG(G3D, "HW render interface mismatch, expected %u, got %u!\n", RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION, Libretro::vulkan->interface_version);
-		Libretro::vulkan = NULL;
-		return;
-	}
-
-	vk->ReinitSurface(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
-
-	if (!vk->InitSwapchain())
-		return;
-
 	draw_ = Draw::T3DCreateVulkanContext(vk, false);
 	draw_->CreatePresets();
-	draw_->HandleEvent(Draw::Event::GOT_BACKBUFFER, vk->GetBackbufferWidth(), vk->GetBackbufferHeight());
 }
