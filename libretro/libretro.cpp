@@ -45,8 +45,12 @@
 static retro_audio_sample_batch_t audio_batch_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
+
+namespace Libretro {
+LibretroGraphicsContext *ctx;
 retro_environment_t environ_cb;
-static LibretroGraphicsContext *ctx;
+}   // namespace Libretro
+using namespace Libretro;
 
 class LibretroHost : public Host {
 	public:
@@ -56,9 +60,10 @@ class LibretroHost : public Host {
 	void InitSound() override {}
 	void UpdateSound() override
 	{
-		static int16_t audio[512 * 2];
 		extern int hostAttemptBlockSize;
-		assert(hostAttemptBlockSize <= sizeof(audio) / (sizeof(int16_t) * 2));
+		const int blockSizeMax = 512;
+		static int16_t audio[blockSizeMax * 2];
+		assert(hostAttemptBlockSize <= blockSizeMax);
 
 		int samples = __AudioMix(audio, hostAttemptBlockSize, SAMPLERATE);
 		audio_batch_cb(audio, samples);
@@ -317,10 +322,22 @@ static void check_variables(CoreParameter &coreParam)
 		gpu->ClearCacheNextFrame();
 }
 
-void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) { audio_batch_cb = cb; }
-void retro_set_audio_sample(retro_audio_sample_t cb) { (void)cb; }
-void retro_set_input_poll(retro_input_poll_t cb) { input_poll_cb = cb; }
-void retro_set_input_state(retro_input_state_t cb) { input_state_cb = cb; }
+void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb)
+{
+	audio_batch_cb = cb;
+}
+void retro_set_audio_sample(retro_audio_sample_t cb)
+{
+	(void)cb;
+}
+void retro_set_input_poll(retro_input_poll_t cb)
+{
+	input_poll_cb = cb;
+}
+void retro_set_input_state(retro_input_state_t cb)
+{
+	input_state_cb = cb;
+}
 
 void retro_init(void)
 {
@@ -349,6 +366,9 @@ void retro_init(void)
 		logman->RemoveListener(logman->GetDebuggerListener());
 		logman->ChangeFileLog(nullptr);
 		logman->AddListener(printfLogger);
+#if 1
+		logman->SetAllLogLevels(LogTypes::LINFO);
+#endif
 	}
 }
 
@@ -391,7 +411,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->geometry.aspect_ratio = 16.0 / 9.0;
 }
 
-unsigned retro_api_version(void) { return RETRO_API_VERSION; }
+unsigned retro_api_version(void)
+{
+	return RETRO_API_VERSION;
+}
 
 bool retro_load_game(const struct retro_game_info *game)
 {
@@ -417,7 +440,7 @@ bool retro_load_game(const struct retro_game_info *game)
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
 	{
-		ERROR_LOG(BOOT, "XRGB8888 is not supported.\n");
+		ERROR_LOG(SYSTEM, "XRGB8888 is not supported.\n");
 		return false;
 	}
 
@@ -469,7 +492,7 @@ bool retro_load_game(const struct retro_game_info *game)
 
 	coreState = CORE_POWERUP;
 	ctx = LibretroGraphicsContext::CreateGraphicsContext();
-	INFO_LOG(G3D, "Using %s backend", ctx->Ident());
+	INFO_LOG(SYSTEM, "Using %s backend", ctx->Ident());
 
 	CoreParameter coreParam = {};
 	coreParam.enableSound = true;
@@ -575,7 +598,7 @@ void retro_run(void)
 	{
 		if (!ctx->GetDrawContext())
 		{
-			ctx->InitDrawContext();
+			ctx->CreateDrawContext();
 			PSP_CoreParameter().thin3d = ctx->GetDrawContext();
 		}
 
@@ -604,16 +627,26 @@ void retro_run(void)
 	retro_input();
 
 	ctx->SetRenderTarget();
+	if (ctx->GetDrawContext())
+		ctx->GetDrawContext()->BeginFrame();
+
 	gpu->BeginHostFrame();
 
 	coreState = CORE_RUNNING;
 	PSP_RunLoopUntil(UINT64_MAX);
 
-	ctx->SwapBuffers();
 	gpu->EndHostFrame();
+
+	if (ctx->GetDrawContext())
+		ctx->GetDrawContext()->EndFrame();
+
+	ctx->SwapBuffers();
 }
 
-unsigned retro_get_region(void) { return RETRO_REGION_NTSC; }
+unsigned retro_get_region(void)
+{
+	return RETRO_REGION_NTSC;
+}
 
 bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num)
 {
@@ -683,7 +716,10 @@ int System_GetPropertyInt(SystemProperty prop)
 	}
 }
 
-std::string System_GetProperty(SystemProperty prop) { return ""; }
+std::string System_GetProperty(SystemProperty prop)
+{
+	return "";
+}
 
 void System_SendMessage(const char *command, const char *parameter) {}
 void NativeUpdate() {}

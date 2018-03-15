@@ -182,7 +182,7 @@ else ifneq (,$(findstring android,$(platform)))
 	FFMPEGLIBDIR := $(FFMPEGDIR)/android/armv7/lib
 	FFMPEGLDFLAGS += -L$(FFMPEGLIBDIR) -lavformat -lavcodec -lavutil -lswresample -lswscale
 
-	PLATFORM_EXT := unix
+	PLATFORM_EXT := android
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -404,12 +404,10 @@ ifeq ($(DEBUG), 1)
 	else
 		CPUOPTS += -O0 -g
 	endif
-	CPUOPTS += -DOPENGL_DEBUG
+	CPUOPTS += -D_DEBUG
 else
-	CPUOPTS += -O2 -DNDEBUG
+	CPUOPTS += -O2 -D_NDEBUG
 endif
-
-COREFLAGS +=-DNO_VULKAN
 
 ifeq (,$(findstring msvc,$(platform)))
    CXXFLAGS += -std=c++11
