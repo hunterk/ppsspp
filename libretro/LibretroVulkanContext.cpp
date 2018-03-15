@@ -31,11 +31,11 @@ static struct
 
 static VulkanContext *vk;
 
-PFN_vkCreateDevice vkCreateDevice_org;
-PFN_vkQueueSubmit vkQueueSubmit_org;
-PFN_vkQueueWaitIdle vkQueueWaitIdle_org;
-PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
-PFN_vkCreateRenderPass vkCreateRenderPass_org;
+static PFN_vkCreateDevice vkCreateDevice_org;
+static PFN_vkQueueSubmit vkQueueSubmit_org;
+static PFN_vkQueueWaitIdle vkQueueWaitIdle_org;
+static PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
+static PFN_vkCreateRenderPass vkCreateRenderPass_org;
 
 #define VULKAN_MAX_SWAPCHAIN_IMAGES		8
 struct VkSwapchainKHR_T
@@ -408,7 +408,6 @@ static void destroy_device(void)
 static void context_reset_vulkan(void)
 {
 	INFO_LOG(G3D, "Context reset");
-	assert(!gpu);
 	assert(!Libretro::ctx->GetDrawContext());
 
 	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&Libretro::vulkan) || !Libretro::vulkan)
@@ -432,14 +431,16 @@ static void context_reset_vulkan(void)
 	PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
 	Libretro::ctx->GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, vk->GetBackbufferWidth(), vk->GetBackbufferHeight());
 
-	GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
+	if(gpu)
+		gpu->DeviceRestore();
+	else
+		GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
 }
 
 static void context_destroy_vulkan(void)
 {
 	LibretroHWRenderContext::context_destroy();
 
-	GPU_Shutdown();
 	Libretro::ctx->DestroyDrawContext();
 	PSP_CoreParameter().thin3d = nullptr;
 
