@@ -174,12 +174,14 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 }
 static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
 {
-	*pSwapchainImageCount = swapchain->count;
 	if (pSwapchainImages)
 	{
-		for (int i = 0; i < swapchain->count; i++)
+		assert(*pSwapchainImageCount <= swapchain->count);
+		for (int i = 0; i < *pSwapchainImageCount; i++)
 			pSwapchainImages[i] = swapchain->images[i].handle;
 	}	
+	else
+		*pSwapchainImageCount = swapchain->count;
 
 	return VK_SUCCESS;
 }
@@ -333,7 +335,9 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 
 	vk->ChooseDevice(physical_device);
 	vk->CreateDevice();
-
+#if 1
+	vk->InitSurface(WINDOWSYSTEM_LIBRETRO, surface, nullptr);
+#else
 #ifdef _WIN32
 	vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_WIN32, nullptr, nullptr);
@@ -354,7 +358,7 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 	vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_WAYLAND, nullptr, nullptr);
 #endif
-
+#endif
 	vkDestroySurfaceKHR = DestroySurfaceKHR;
 	vkCreateSwapchainKHR = CreateSwapchainKHR;
 	vkGetSwapchainImagesKHR = GetSwapchainImagesKHR;

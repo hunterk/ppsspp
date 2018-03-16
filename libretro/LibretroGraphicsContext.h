@@ -69,9 +69,9 @@ class LibretroHWRenderContext : public LibretroGraphicsContext {
 extern "C" retro_hw_get_proc_address_t libretro_get_proc_address;
 
 #ifdef _WIN32
-class D3D9Context : public HWRenderContext {
+class LibretroD3D9Context : public LibretroHWRenderContext {
 	public:
-	D3D9Context() : HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 9) {}
+	LibretroD3D9Context() : LibretroHWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 9) {}
 	bool Init() override { return false; }
 #if 0
    void InitDrawContext() override
@@ -84,9 +84,9 @@ class D3D9Context : public HWRenderContext {
 	const char *Ident() override { return "DirectX 9"; }
 };
 
-class D3D11Context : public HWRenderContext {
+class LibretroD3D11Context : public LibretroHWRenderContext {
 	public:
-	D3D11Context() : HWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 11) {}
+	LibretroD3D11Context() : LibretroHWRenderContext(RETRO_HW_CONTEXT_DIRECT3D, 11) {}
 	bool Init() override { return false; }
 #if 0
    void InitDrawContext() override
@@ -100,18 +100,18 @@ class D3D11Context : public HWRenderContext {
 };
 #endif
 
-class SoftwareContext : public LibretroGraphicsContext {
+class LibretroSoftwareContext : public LibretroGraphicsContext {
 	public:
-	SoftwareContext() {}
+	LibretroSoftwareContext() {}
 	bool Init() override { return true; }
 	void SwapBuffers() override { video_cb(NULL, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight, 0); }
 	GPUCore GetGPUCore() override { return GPUCORE_SOFTWARE; }
 	const char *Ident() override { return "Software"; }
 };
 
-class NullContext : public LibretroGraphicsContext {
+class LibretroNullContext : public LibretroGraphicsContext {
 	public:
-	NullContext() {}
+	LibretroNullContext() {}
 
 	bool Init() override { return true; }
 	void SwapBuffers() override { video_cb(NULL, 0, 0, 0); }

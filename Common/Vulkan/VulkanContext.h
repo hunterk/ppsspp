@@ -46,6 +46,9 @@ enum WindowSystem {
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 	WINDOWSYSTEM_WAYLAND,
 #endif
+#ifdef __LIBRETRO__
+	WINDOWSYSTEM_LIBRETRO,
+#endif
 };
 
 struct VulkanPhysicalDeviceInfo {

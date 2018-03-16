@@ -73,14 +73,14 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext()
 #endif
 
 #ifdef _WIN32
-	ctx = new D3D11Context();
+	ctx = new LibretroD3D11Context();
 
 	if (ctx->Init())
 		return ctx;
 
 	delete ctx;
 
-	ctx = new D3D9Context();
+	ctx = new LibretroD3D9Context();
 
 	if (ctx->Init())
 		return ctx;
@@ -89,7 +89,7 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext()
 #endif
 
 #if 1
-	ctx = new SoftwareContext();
+	ctx = new LibretroSoftwareContext();
 
 	if (ctx->Init())
 		return ctx;
@@ -97,5 +97,5 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext()
 	delete ctx;
 #endif
 
-	return new NullContext();
+	return new LibretroNullContext();
 }
