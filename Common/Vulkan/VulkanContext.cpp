@@ -701,6 +701,13 @@ void VulkanContext::ReinitSurface(int width, int height) {
 		break;
 	}
 #endif
+#if defined(__LIBRETRO__)
+	case WINDOWSYSTEM_LIBRETRO:
+	{
+		surface_ = (VkSurfaceKHR)winsysData1_;
+		break;
+	}
+#endif
 
 	default:
 		_assert_msg_(G3D, false, "Vulkan support for chosen window system not implemented");
