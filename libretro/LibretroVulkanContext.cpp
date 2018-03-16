@@ -38,6 +38,7 @@ static PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
 static PFN_vkCreateRenderPass vkCreateRenderPass_org;
 static PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org;
 #define VULKAN_MAX_SWAPCHAIN_IMAGES 8
+
 struct VkSwapchainKHR_T
 {
 	uint32_t count;
@@ -51,6 +52,7 @@ struct VkSwapchainKHR_T
 	std::condition_variable condVar;
 	int current_index;
 };
+
 static VkSwapchainKHR_T chain;
 
 static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
@@ -179,7 +181,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 	}
 
 	chain.current_index = -1;
-	*pSwapchain = &chain;
+	*pSwapchain = (VkSwapchainKHR *)&chain;
 
 	return VK_SUCCESS;
 }
