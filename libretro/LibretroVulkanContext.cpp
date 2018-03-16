@@ -181,7 +181,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 	}
 
 	chain.current_index = -1;
-	*pSwapchain = (VkSwapchainKHR *)&chain;
+	*pSwapchain = static_cast<VkSwapchainKHR *>&chain;
 
 	return VK_SUCCESS;
 }
