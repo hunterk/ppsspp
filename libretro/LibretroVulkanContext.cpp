@@ -185,7 +185,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 
 	return VK_SUCCESS;
 }
-static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
+static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR_T swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
 {
 	if (pSwapchainImages)
 	{
