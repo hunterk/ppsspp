@@ -36,8 +36,8 @@ static PFN_vkQueueSubmit vkQueueSubmit_org;
 static PFN_vkQueueWaitIdle vkQueueWaitIdle_org;
 static PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
 static PFN_vkCreateRenderPass vkCreateRenderPass_org;
-
-#define VULKAN_MAX_SWAPCHAIN_IMAGES		8
+static PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org;
+#define VULKAN_MAX_SWAPCHAIN_IMAGES 8
 struct VkSwapchainKHR_T
 {
 	uint32_t count;
@@ -100,6 +100,17 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSurfaceKHR(VkInstance instance, cons
 {
 	*pSurface = vk_init_info.surface;
 	return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
+{
+	VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org(physicalDevice, surface, pSurfaceCapabilities);
+	if(res == VK_SUCCESS)
+	{
+		pSurfaceCapabilities->currentExtent.width = -1;
+		pSurfaceCapabilities->currentExtent.height = -1;
+	}
+	return res;
 }
 
 static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchain)
@@ -179,7 +190,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkS
 		assert(*pSwapchainImageCount <= swapchain->count);
 		for (int i = 0; i < *pSwapchainImageCount; i++)
 			pSwapchainImages[i] = swapchain->images[i].handle;
-	}	
+	}
 	else
 		*pSwapchainImageCount = swapchain->count;
 
@@ -211,7 +222,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPre
 void LibretroVulkanContext::SwapBuffers()
 {
 	std::unique_lock<std::mutex> lock(chain.mutex);
-	if(chain.current_index < 0)
+	if (chain.current_index < 0)
 		chain.condVar.wait(lock);
 	LibretroHWRenderContext::SwapBuffers();
 #if 0
@@ -359,6 +370,8 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 	vk->InitSurface(WINDOWSYSTEM_WAYLAND, nullptr, nullptr);
 #endif
 #endif
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org = vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR = GetPhysicalDeviceSurfaceCapabilitiesKHR;
 	vkDestroySurfaceKHR = DestroySurfaceKHR;
 	vkCreateSwapchainKHR = CreateSwapchainKHR;
 	vkGetSwapchainImagesKHR = GetSwapchainImagesKHR;
@@ -435,7 +448,7 @@ static void context_reset_vulkan(void)
 	PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
 	Libretro::ctx->GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, vk->GetBackbufferWidth(), vk->GetBackbufferHeight());
 
-	if(gpu)
+	if (gpu)
 		gpu->DeviceRestore();
 	else
 		GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
