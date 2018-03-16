@@ -189,12 +189,12 @@ static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkS
 {
 	if (pSwapchainImages)
 	{
-		assert(*pSwapchainImageCount <= swapchain->count);
+		assert(*pSwapchainImageCount <= swapchain.count);
 		for (int i = 0; i < *pSwapchainImageCount; i++)
-			pSwapchainImages[i] = swapchain->images[i].handle;
+			pSwapchainImages[i] = swapchain.images[i].handle;
 	}
 	else
-		*pSwapchainImageCount = swapchain->count;
+		*pSwapchainImageCount = swapchain.count;
 
 	return VK_SUCCESS;
 }
