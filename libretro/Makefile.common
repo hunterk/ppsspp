@@ -527,9 +527,12 @@ ifdef WITH_DYNAREC
 		CPUFLAGS += -msse -msse2
 endif
       ifeq ($(WITH_DYNAREC), x86_64)
-	   CPUFLAGS += -D_M_X64 -D_ARCH_64
+         CPUFLAGS += -D_M_X64 -D_ARCH_64
       else
-	   CPUFLAGS += -D_M_IX86 -m32 -D_ARCH_32
+         CPUFLAGS += -D_M_IX86 -D_ARCH_32
+         ifeq (,$(findstring msvc,$(platform)))
+            CPUFLAGS += -m32
+         endif
       endif
 	   SOURCES_CXX += $(GPUDIR)/Software/SamplerX86.cpp
 	   SOURCES_CXX += $(COMMONDIR)/x64Emitter.cpp \

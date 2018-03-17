@@ -179,12 +179,13 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 	}
 
 	chain.current_index = -1;
-	*pSwapchain = &chain;
+	*pSwapchain = (VkSwapchainKHR)&chain;
 
 	return VK_SUCCESS;
 }
-static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
+static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain_, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
 {
+	VkSwapchainKHR_T* swapchain = (VkSwapchainKHR_T*)swapchain_;
 	if (pSwapchainImages)
 	{
 		assert(*pSwapchainImageCount <= swapchain->count);
@@ -206,15 +207,16 @@ static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwa
 
 static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
 {
-	std::unique_lock<std::mutex> lock(pPresentInfo->pSwapchains[0]->mutex);
+	VkSwapchainKHR_T* swapchain = (VkSwapchainKHR_T*)pPresentInfo->pSwapchains[0];
+	std::unique_lock<std::mutex> lock(swapchain->mutex);
 #if 0
 	if(chain.current_index >= 0)
 		chain.condVar.wait(lock);
 #endif
 
 	chain.current_index = pPresentInfo->pImageIndices[0];
-	Libretro::vulkan->set_image(Libretro::vulkan->handle, &pPresentInfo->pSwapchains[0]->images[pPresentInfo->pImageIndices[0]].retro_image, 0, nullptr, Libretro::vulkan->queue_index);
-	pPresentInfo->pSwapchains[0]->condVar.notify_all();
+	Libretro::vulkan->set_image(Libretro::vulkan->handle, &swapchain->images[pPresentInfo->pImageIndices[0]].retro_image, 0, nullptr, Libretro::vulkan->queue_index);
+	swapchain->condVar.notify_all();
 
 	return VK_SUCCESS;
 }
@@ -347,7 +349,7 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 	vk->ChooseDevice(physical_device);
 	vk->CreateDevice();
 #if 1
-	vk->InitSurface(WINDOWSYSTEM_LIBRETRO, surface, nullptr);
+	vk->InitSurface(WINDOWSYSTEM_LIBRETRO, (void*)surface, nullptr);
 #else
 #ifdef _WIN32
 	vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)CreateSurfaceKHR;
