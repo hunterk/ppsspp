@@ -38,7 +38,6 @@ static PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
 static PFN_vkCreateRenderPass vkCreateRenderPass_org;
 static PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org;
 #define VULKAN_MAX_SWAPCHAIN_IMAGES 8
-
 struct VkSwapchainKHR_T
 {
 	uint32_t count;
@@ -52,7 +51,6 @@ struct VkSwapchainKHR_T
 	std::condition_variable condVar;
 	int current_index;
 };
-
 static VkSwapchainKHR_T chain;
 
 static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
@@ -181,20 +179,20 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 	}
 
 	chain.current_index = -1;
-	*pSwapchain = static_cast<VkSwapchainKHR *>&chain;
+	*pSwapchain = &chain;
 
 	return VK_SUCCESS;
 }
-static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR_T swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
+static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
 {
 	if (pSwapchainImages)
 	{
-		assert(*pSwapchainImageCount <= swapchain.count);
+		assert(*pSwapchainImageCount <= swapchain->count);
 		for (int i = 0; i < *pSwapchainImageCount; i++)
-			pSwapchainImages[i] = swapchain.images[i].handle;
+			pSwapchainImages[i] = swapchain->images[i].handle;
 	}
 	else
-		*pSwapchainImageCount = swapchain.count;
+		*pSwapchainImageCount = swapchain->count;
 
 	return VK_SUCCESS;
 }
