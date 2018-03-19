@@ -523,12 +523,12 @@ bool retro_load_game(const struct retro_game_info *game)
 
 void retro_unload_game(void)
 {
+	PSP_Shutdown();
+	VFSShutdown();
+
 	delete ctx;
 	ctx = nullptr;
 	PSP_CoreParameter().graphicsContext = nullptr;
-
-	PSP_Shutdown();
-	VFSShutdown();
 }
 
 void retro_reset(void)
