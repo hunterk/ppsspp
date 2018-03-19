@@ -10,14 +10,18 @@
 class LibretroGraphicsContext : public GraphicsContext {
 	public:
 	LibretroGraphicsContext() {}
-	~LibretroGraphicsContext() override { DestroyDrawContext(); }
+	~LibretroGraphicsContext() override { }
 
 	virtual bool Init() = 0;
 	virtual void SetRenderTarget() {}
 	virtual GPUCore GetGPUCore() = 0;
 	virtual const char *Ident() = 0;
 
-	void Shutdown() override {}
+	void Shutdown() override
+	{
+		DestroyDrawContext();
+		PSP_CoreParameter().thin3d = nullptr;
+	}
 	void SwapInterval(int interval) override {}
 	void Resize() override {}
 
@@ -26,7 +30,7 @@ class LibretroGraphicsContext : public GraphicsContext {
 	{
 		if (!draw_)
 			return;
-		draw_->HandleEvent(Draw::Event::LOST_BACKBUFFER, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+		draw_->HandleEvent(Draw::Event::LOST_BACKBUFFER, -1, -1);
 		delete draw_;
 		draw_ = nullptr;
 	}
@@ -34,8 +38,9 @@ class LibretroGraphicsContext : public GraphicsContext {
 
 	static LibretroGraphicsContext *CreateGraphicsContext();
 
-	Draw::DrawContext *draw_ = nullptr;
 	static retro_video_refresh_t video_cb;
+protected:
+	Draw::DrawContext *draw_ = nullptr;
 };
 
 class LibretroHWRenderContext : public LibretroGraphicsContext {

@@ -523,14 +523,12 @@ bool retro_load_game(const struct retro_game_info *game)
 
 void retro_unload_game(void)
 {
-	PSP_Shutdown();
-	VFSShutdown();
-
 	delete ctx;
 	ctx = nullptr;
-
-	PSP_CoreParameter().thin3d = nullptr;
 	PSP_CoreParameter().graphicsContext = nullptr;
+
+	PSP_Shutdown();
+	VFSShutdown();
 }
 
 void retro_reset(void)
@@ -596,12 +594,6 @@ void retro_run(void)
 {
 	if (PSP_IsIniting())
 	{
-		if (!ctx->GetDrawContext())
-		{
-			ctx->CreateDrawContext();
-			PSP_CoreParameter().thin3d = ctx->GetDrawContext();
-		}
-
 		std::string error_string;
 #if 0
       if(!PSP_InitUpdate(&error_string))

@@ -15,12 +15,11 @@ bool LibretroGLContext::Init()
 
 void LibretroGLContext::Shutdown()
 {
+	LibretroGraphicsContext::Shutdown();
+	libretro_get_proc_address = nullptr;
 #if 0
    NativeShutdownGraphics();
-   gl->ClearCurrent();
-   gl->Shutdown();
-   delete gl;
-   finalize_glslang();
+	finalize_glslang();
 #endif
 }
 
@@ -36,5 +35,4 @@ void LibretroGLContext::CreateDrawContext()
 	CheckGLExtensions();
 
 	draw_ = Draw::T3DCreateGLContext();
-	draw_->CreatePresets();
 }
