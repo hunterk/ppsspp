@@ -206,8 +206,6 @@ else ifeq ($(platform), qnx)
 
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
-	CC = gcc
-	CXX = g++
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
 	LDFLAGS += -shared -Wl,--version-script=link.T -Wl,--no-undefined
