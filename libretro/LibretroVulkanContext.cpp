@@ -105,7 +105,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSurfaceKHR(VkInstance instance, cons
 VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
 {
 	VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org(physicalDevice, surface, pSurfaceCapabilities);
-	if(res == VK_SUCCESS)
+	if (res == VK_SUCCESS)
 	{
 		pSurfaceCapabilities->currentExtent.width = -1;
 		pSurfaceCapabilities->currentExtent.height = -1;
@@ -202,6 +202,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwa
 {
 	Libretro::vulkan->wait_sync_index(Libretro::vulkan->handle);
 	*pImageIndex = Libretro::vulkan->get_sync_index(Libretro::vulkan->handle);
+#if 0
+	Libretro::vulkan->set_signal_semaphore(Libretro::vulkan->handle, semaphore);
+#endif
 	return VK_SUCCESS;
 }
 
@@ -215,7 +218,11 @@ static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPre
 #endif
 
 	chain.current_index = pPresentInfo->pImageIndices[0];
+#if 0
+	Libretro::vulkan->set_image(Libretro::vulkan->handle, &swapchain->images[pPresentInfo->pImageIndices[0]].retro_image, pPresentInfo->waitSemaphoreCount, pPresentInfo->pWaitSemaphores, Libretro::vulkan->queue_index);
+#else
 	Libretro::vulkan->set_image(Libretro::vulkan->handle, &swapchain->images[pPresentInfo->pImageIndices[0]].retro_image, 0, nullptr, Libretro::vulkan->queue_index);
+#endif
 	swapchain->condVar.notify_all();
 
 	return VK_SUCCESS;
@@ -258,6 +265,7 @@ VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t submitCount, 
 	for(int i = 0; i < submitCount; i++)
 		Libretro::vulkan->set_command_buffers(Libretro::vulkan->handle, pSubmits[i].commandBufferCount, pSubmits[i].pCommandBuffers);
 #else
+#if 1
 	for (int i = 0; i < submitCount; i++)
 	{
 		((VkSubmitInfo *)pSubmits)[i].waitSemaphoreCount = 0;
@@ -265,6 +273,7 @@ VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t submitCount, 
 		((VkSubmitInfo *)pSubmits)[i].signalSemaphoreCount = 0;
 		((VkSubmitInfo *)pSubmits)[i].pSignalSemaphores = nullptr;
 	}
+#endif
 	Libretro::vulkan->lock_queue(Libretro::vulkan->handle);
 	res = vkQueueSubmit_org(queue, submitCount, pSubmits, fence);
 	Libretro::vulkan->unlock_queue(Libretro::vulkan->handle);
@@ -413,55 +422,12 @@ static void destroy_device(void)
 	if (!vk)
 		return;
 
-	vk->WaitUntilQueueIdle();
-
-	vk->DestroyObjects();
-	vk->DestroyDevice();
-	vk->DestroyInstance();
-	delete vk;
-	vk = nullptr;
-
-	finalize_glslang();
-}
-
-static void context_reset_vulkan(void)
-{
-	INFO_LOG(G3D, "Context reset");
-	assert(!Libretro::ctx->GetDrawContext());
-
-	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&Libretro::vulkan) || !Libretro::vulkan)
-	{
-		ERROR_LOG(G3D, "Failed to get HW rendering interface!\n");
-		return;
-	}
-	if (Libretro::vulkan->interface_version != RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION)
-	{
-		ERROR_LOG(G3D, "HW render interface mismatch, expected %u, got %u!\n", RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION, Libretro::vulkan->interface_version);
-		Libretro::vulkan = NULL;
-		return;
-	}
-
-	vk->ReinitSurface(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
-
-	if (!vk->InitSwapchain())
-		return;
-
-	Libretro::ctx->CreateDrawContext();
-	PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
-	Libretro::ctx->GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, vk->GetBackbufferWidth(), vk->GetBackbufferHeight());
-
-	if (gpu)
-		gpu->DeviceRestore();
-	else
-		GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
+	PSP_CoreParameter().graphicsContext->Shutdown();
 }
 
 static void context_destroy_vulkan(void)
 {
 	LibretroHWRenderContext::context_destroy();
-
-	Libretro::ctx->DestroyDrawContext();
-	PSP_CoreParameter().thin3d = nullptr;
 
 	// temporary workaround, destroy_device is currently being called too late/never
 	destroy_device();
@@ -480,7 +446,6 @@ static const VkApplicationInfo *GetApplicationInfo(void)
 
 bool LibretroVulkanContext::Init()
 {
-	hw_render_.context_reset = context_reset_vulkan;
 	hw_render_.context_destroy = context_destroy_vulkan;
 
 	if (!LibretroHWRenderContext::Init())
@@ -493,7 +458,20 @@ bool LibretroVulkanContext::Init()
 }
 void LibretroVulkanContext::Shutdown()
 {
-	destroy_device();
+	LibretroHWRenderContext::Shutdown();
+
+	vk->WaitUntilQueueIdle();
+
+	vk->DestroyObjects();
+	vk->DestroyDevice();
+	vk->DestroyInstance();
+	delete vk;
+	vk = nullptr;
+
+#if 0
+   NativeShutdownGraphics();
+#endif
+	finalize_glslang();
 	Libretro::vulkan = nullptr;
 }
 
@@ -504,6 +482,22 @@ void *LibretroVulkanContext::GetAPIContext()
 
 void LibretroVulkanContext::CreateDrawContext()
 {
+	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&Libretro::vulkan) || !Libretro::vulkan)
+	{
+		ERROR_LOG(G3D, "Failed to get HW rendering interface!\n");
+		return;
+	}
+	if (Libretro::vulkan->interface_version != RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION)
+	{
+		ERROR_LOG(G3D, "HW render interface mismatch, expected %u, got %u!\n", RETRO_HW_RENDER_INTERFACE_VULKAN_VERSION, Libretro::vulkan->interface_version);
+		Libretro::vulkan = NULL;
+		return;
+	}
+
+	vk->ReinitSurface(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+
+	if (!vk->InitSwapchain())
+		return;
+
 	draw_ = Draw::T3DCreateVulkanContext(vk, false);
-	draw_->CreatePresets();
 }

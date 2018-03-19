@@ -28,32 +28,27 @@ void LibretroHWRenderContext::context_reset(void)
 {
 	INFO_LOG(G3D, "Context reset");
 
+	if (!Libretro::ctx->GetDrawContext())
+	{
+		Libretro::ctx->CreateDrawContext();
+		PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
+		Libretro::ctx->GetDrawContext()->CreatePresets();
+		Libretro::ctx->GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+	}
+
 	if (gpu)
 		gpu->DeviceRestore();
-	else
-	{
-		if (!Libretro::ctx->GetDrawContext())
-		{
-			Libretro::ctx->CreateDrawContext();
-			PSP_CoreParameter().thin3d = Libretro::ctx->GetDrawContext();
-		}
-
-		GPU_Init(Libretro::ctx, Libretro::ctx->GetDrawContext());
-	}
 }
 
 void LibretroHWRenderContext::context_destroy(void)
 {
 	INFO_LOG(G3D, "Context destroy");
 
-	if (gpu)
-		gpu->DeviceLost();
+	gpu->DeviceLost();
 }
 
 LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext()
 {
-	libretro_get_proc_address = NULL;
-
 	LibretroGraphicsContext *ctx;
 
 	ctx = new LibretroGLContext();

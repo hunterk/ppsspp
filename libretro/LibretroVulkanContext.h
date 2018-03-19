@@ -10,8 +10,8 @@ class LibretroVulkanContext : public LibretroHWRenderContext {
 		hw_render_.cache_context = true;
 #endif
 	}
-	~LibretroVulkanContext() override { Shutdown(); }
-	bool Init() override;	
+	~LibretroVulkanContext() override {}
+	bool Init() override;
 	void Shutdown() override;
 	void SwapBuffers() override;
 
