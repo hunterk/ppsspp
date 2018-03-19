@@ -203,6 +203,7 @@ extern PFN_vkDestroyDebugReportCallbackEXT dyn_vkDestroyDebugReportCallbackEXT;
 
 // Way to do a quick check before even attempting to load.
 bool VulkanMayBeAvailable();
+void VulkanSetAvailable(bool available);
 
 bool VulkanLoad();
 void VulkanLoadInstanceFunctions(VkInstance instance);

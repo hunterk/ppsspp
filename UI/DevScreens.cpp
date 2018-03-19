@@ -42,6 +42,7 @@
 #include "UI/GameSettingsScreen.h"
 
 #ifdef _WIN32
+#include "Common/CommonWindows.h"
 // Want to avoid including the full header here as it includes d3dx.h
 int GetD3DXVersion();
 #endif
@@ -70,6 +71,7 @@ void DevMenu::CreatePopupContents(UI::ViewGroup *parent) {
 	items->Add(new Choice(sy->T("Developer Tools")))->OnClick.Handle(this, &DevMenu::OnDeveloperTools);
 	items->Add(new Choice(dev->T("Jit Compare")))->OnClick.Handle(this, &DevMenu::OnJitCompare);
 	items->Add(new Choice(dev->T("Shader Viewer")))->OnClick.Handle(this, &DevMenu::OnShaderView);
+	items->Add(new CheckBox(&g_Config.bShowAllocatorDebug, dev->T("Allocator Viewer")));
 	items->Add(new Choice(dev->T("Toggle Freeze")))->OnClick.Handle(this, &DevMenu::OnFreezeFrame);
 	items->Add(new Choice(dev->T("Dump Frame GPU Commands")))->OnClick.Handle(this, &DevMenu::OnDumpFrame);
 	items->Add(new Choice(dev->T("Toggle Audio Debug")))->OnClick.Handle(this, &DevMenu::OnToggleAudioDebug);
@@ -118,7 +120,8 @@ UI::EventReturn DevMenu::OnJitCompare(UI::EventParams &e) {
 
 UI::EventReturn DevMenu::OnShaderView(UI::EventParams &e) {
 	UpdateUIState(UISTATE_PAUSEMENU);
-	screenManager()->push(new ShaderListScreen());
+	if (gpu)  // Avoid crashing if chosen while the game is being loaded.
+		screenManager()->push(new ShaderListScreen());
 	return UI::EVENT_DONE;
 }
 
@@ -469,6 +472,9 @@ void SystemInfoScreen::CreateViews() {
 	buildConfig->Add(new InfoItem("_DEBUG", ""));
 #else
 	buildConfig->Add(new InfoItem("NDEBUG", ""));
+#endif
+#ifdef USE_ADDRESS_SANITIZER
+	buildConfig->Add(new InfoItem("USE_ADDRESS_SANITIZER", ""));
 #endif
 #ifdef USING_GLES2
 	buildConfig->Add(new InfoItem("USING_GLES2", ""));
