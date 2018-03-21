@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/Vulkan/VulkanLoader.h"
 #include "libretro/LibretroGraphicsContext.h"
 
 class LibretroVulkanContext : public LibretroHWRenderContext {
