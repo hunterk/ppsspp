@@ -87,8 +87,6 @@
             #ifdef _M_ARM
                 #define PPSSPP_ARCH_ARM_HARDFP 1
             #endif
-        #elif WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-            #define PPSSPP_PLATFORM_DESKTOP 1
         #endif
     #endif
 #elif defined(__APPLE__)
