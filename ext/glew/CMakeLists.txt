@@ -6,11 +6,7 @@ if(GLEW_FOUND)
   add_library(Ext::GLEW ALIAS system_glew)
   target_link_libraries(system_glew INTERFACE GLEW::GLEW)
 else()
-  if(LIBRETRO)
-    set(GLEW_LIBRARY glew_libretro.c)
-  else()
-    set(GLEW_LIBRARY glew.c)
-  endif()
+  set(GLEW_LIBRARY glew.c)
   find_package(OpenGL REQUIRED)
   add_library(glew STATIC
     GL/glew.h

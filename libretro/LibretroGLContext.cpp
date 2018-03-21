@@ -29,15 +29,18 @@ void LibretroGLContext::Shutdown()
 
 void LibretroGLContext::CreateDrawContext()
 {
-#if !defined(IOS) && !defined(USING_GLES2)
-	if (!glewInitDone && glewInit() != GLEW_OK)
+	if (!glewInitDone)
 	{
-		ERROR_LOG(G3D, "glewInit() failed.\n");
-		return;
-	}
-	glewInitDone = true;
+#if !defined(IOS) && !defined(USING_GLES2)
+		if(glewInit() != GLEW_OK)
+		{
+			ERROR_LOG(G3D, "glewInit() failed.\n");
+			return;
+		}
 #endif
-	CheckGLExtensions();
+		glewInitDone = true;
+		CheckGLExtensions();
+	}
 	draw_ = Draw::T3DCreateGLContext();
 	renderManager_ = (GLRenderManager *)draw_->GetNativeObject(Draw::NativeObject::RENDER_MANAGER);
 }
