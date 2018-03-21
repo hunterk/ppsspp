@@ -2,7 +2,6 @@
 #include <atomic>
 
 #include "libretro/libretro.h"
-#include "libretro/libretro_vulkan.h"
 #include "Common/GraphicsContext.h"
 #include "thin3d/thin3d_create.h"
 

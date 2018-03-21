@@ -593,7 +593,8 @@ else
 		$(GPUDIR)/Vulkan/TextureScalerVulkan.cpp \
 		$(GPUDIR)/Vulkan/VertexShaderGeneratorVulkan.cpp \
 		$(GPUDIR)/Vulkan/VulkanUtil.cpp \
-		$(LIBRETRODIR)/LibretroVulkanContext.cpp
+		$(LIBRETRODIR)/LibretroVulkanContext.cpp \
+		$(LIBRETRODIR)/libretro_vulkan.cpp
 
 	ifeq ($(PLATFORM_EXT), unix)
 		COREFLAGS += -DVK_USE_PLATFORM_XLIB_KHR
