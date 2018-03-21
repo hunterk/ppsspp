@@ -266,7 +266,6 @@ SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(NATIVEDIR)/file/free.cpp \
 	       $(NATIVEDIR)/file/zip_read.cpp \
 	       $(NATIVEDIR)/gfx/gl_debug_log.cpp \
-	       $(NATIVEDIR)/gfx/GLStateCache.cpp \
 	       $(NATIVEDIR)/gfx/texture_atlas.cpp \
 			 $(NATIVEDIR)/gfx_es2/draw_buffer.cpp \
           $(NATIVEDIR)/gfx_es2/draw_text.cpp \
@@ -286,6 +285,9 @@ SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(NATIVEDIR)/net/url.cpp \
 	       $(NATIVEDIR)/thin3d/thin3d.cpp \
 			 $(NATIVEDIR)/thin3d/thin3d_gl.cpp \
+          $(NATIVEDIR)/thin3d/GLRenderManager.cpp \
+          $(NATIVEDIR)/thin3d/GLQueueRunner.cpp \
+          $(NATIVEDIR)/thin3d/DataFormatGL.cpp \
 	       $(NATIVEDIR)/thread/threadutil.cpp \
 	       $(NATIVEDIR)/thread/threadpool.cpp \
 	       $(NATIVEDIR)/ui/screen.cpp \
@@ -451,7 +453,8 @@ SOURCES_CXX += $(NATIVEDIR)/math/dataconv.cpp \
 	       $(COREDIR)/Util/BlockAllocator.cpp \
 	       $(COREDIR)/Util/PPGeDraw.cpp \
 	       $(COREDIR)/Util/ppge_atlas.cpp \
-	       $(COREDIR)/Util/AudioFormat.cpp
+	       $(COREDIR)/Util/AudioFormat.cpp \
+          $(CORE_DIR)/UI/TextureUtil.cpp
 
 SOURCES_CXX += $(COREDIR)/HLE/__sceAudio.cpp
 
@@ -474,7 +477,7 @@ ifdef WITH_DYNAREC
 			       $(COREDIR)/MIPS/ARM/ArmRegCache.cpp \
 			       $(COREDIR)/MIPS/ARM/ArmRegCacheFPU.cpp \
 			       $(GPUCOMMONDIR)/VertexDecoderArm.cpp
-		
+
 		ifeq ($(HAVE_NEON),1)
 			SOURCES_CXX   += \
 					 $(COREDIR)/MIPS/ARM/ArmCompVFPUNEON.cpp \
@@ -504,7 +507,7 @@ ifdef WITH_DYNAREC
 		     $(COREDIR)/MIPS/ARM64/Arm64RegCacheFPU.cpp \
 		     $(COREDIR)/Util/DisArm64.cpp \
 		     $(GPUCOMMONDIR)/VertexDecoderArm64.cpp
-		
+
 		ifeq ($(HAVE_NEON),1)
 			SOURCES_CXX   += \
 					 $(COREDIR)/MIPS/ARM/ArmCompVFPUNEON.cpp \

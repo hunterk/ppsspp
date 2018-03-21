@@ -6,6 +6,8 @@
 #include "Common/Vulkan/VulkanContext.h"
 #include "Common/Vulkan/VulkanDebug.h"
 #include "Common/Log.h"
+#include "Core/Config.h"
+#include "Core/System.h"
 #include "GPU/GPUInterface.h"
 #include "util/text/parsers.h"
 
@@ -425,9 +427,9 @@ static void destroy_device(void)
 	PSP_CoreParameter().graphicsContext->Shutdown();
 }
 
-static void context_destroy_vulkan(void)
+void LibretroVulkanContext::ContextDestroy()
 {
-	LibretroHWRenderContext::context_destroy();
+	LibretroHWRenderContext::ContextDestroy();
 
 	// temporary workaround, destroy_device is currently being called too late/never
 	destroy_device();
@@ -446,14 +448,13 @@ static const VkApplicationInfo *GetApplicationInfo(void)
 
 bool LibretroVulkanContext::Init()
 {
-	hw_render_.context_destroy = context_destroy_vulkan;
-
 	if (!LibretroHWRenderContext::Init())
 		return false;
 
 	static const struct retro_hw_render_context_negotiation_interface_vulkan iface = { RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN, RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION, GetApplicationInfo, create_device, nullptr };
 	Libretro::environ_cb(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, (void *)&iface);
 
+	g_Config.iGPUBackend = (int)GPUBackend::VULKAN;
 	return true;
 }
 void LibretroVulkanContext::Shutdown()

@@ -2,6 +2,7 @@
 
 #include "gfx/gl_common.h"
 #include "libretro/LibretroGraphicsContext.h"
+#include "thin3d/GLRenderManager.h"
 
 class LibretroGLContext : public LibretroHWRenderContext {
 	public:
@@ -21,12 +22,33 @@ class LibretroGLContext : public LibretroHWRenderContext {
 	bool Init() override;
 	void Shutdown() override;
 	void CreateDrawContext() override;
+	void DestroyDrawContext() override;
 	void SetRenderTarget() override
 	{
 		extern GLuint g_defaultFBO;
 		g_defaultFBO = hw_render_.get_current_framebuffer();
 	}
 
+	void ThreadStart() override {
+		renderManager_->ThreadStart();
+	}
+
+	bool ThreadFrame() override {
+		return renderManager_->ThreadFrame();
+	}
+
+	void ThreadEnd() override {
+		renderManager_->ThreadEnd();
+	}
+
+	void StopThread() override {
+		renderManager_->WaitUntilQueueIdle();
+		renderManager_->StopThread();
+	}
+
 	GPUCore GetGPUCore() override { return GPUCORE_GLES; }
 	const char *Ident() override { return "OpenGL"; }
+private:
+	GLRenderManager *renderManager_ = nullptr;
+	bool glewInitDone = false;
 };

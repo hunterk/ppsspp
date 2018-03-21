@@ -1,6 +1,8 @@
 set(LIBRETRO_SRCS
   libretro.cpp
   LibretroGraphicsContext.cpp
+  LibretroGLContext.cpp
+  LibretroVulkanContext.cpp
 )
 
 add_library(ppsspp_libretro SHARED ${LIBRETRO_SRCS})
