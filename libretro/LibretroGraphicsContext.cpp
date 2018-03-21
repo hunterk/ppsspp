@@ -56,8 +56,8 @@ void LibretroHWRenderContext::ContextReset()
 	{
 		CreateDrawContext();
 		PSP_CoreParameter().thin3d = draw_;
-		GetDrawContext()->CreatePresets();
-		GetDrawContext()->HandleEvent(Draw::Event::GOT_BACKBUFFER, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+		draw_->CreatePresets();
+		draw_->HandleEvent(Draw::Event::GOT_BACKBUFFER, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
 	}
 
 	if (gpu)

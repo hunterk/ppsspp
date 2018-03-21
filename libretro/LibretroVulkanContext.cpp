@@ -33,12 +33,28 @@ static struct
 
 static VulkanContext *vk;
 
-static PFN_vkCreateDevice vkCreateDevice_org;
-static PFN_vkQueueSubmit vkQueueSubmit_org;
-static PFN_vkQueueWaitIdle vkQueueWaitIdle_org;
-static PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier_org;
-static PFN_vkCreateRenderPass vkCreateRenderPass_org;
-static PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org;
+#define LIBRETRO_VK_WARP_LIST() \
+	LIBRETRO_VK_WARP_FUNC(vkDestroyInstance); \
+	LIBRETRO_VK_WARP_FUNC(vkCreateDevice); \
+	LIBRETRO_VK_WARP_FUNC(vkDestroyDevice); \
+	LIBRETRO_VK_WARP_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkDestroySurfaceKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkCreateSwapchainKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkGetSwapchainImagesKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkAcquireNextImageKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkQueuePresentKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkDestroySwapchainKHR); \
+	LIBRETRO_VK_WARP_FUNC(vkQueueSubmit); \
+	LIBRETRO_VK_WARP_FUNC(vkQueueWaitIdle); \
+	LIBRETRO_VK_WARP_FUNC(vkCmdPipelineBarrier); \
+	LIBRETRO_VK_WARP_FUNC(vkCreateRenderPass)
+
+#define LIBRETRO_VK_WARP_FUNC(x) PFN_##x x##_org
+
+LIBRETRO_VK_WARP_FUNC(vkGetInstanceProcAddr);
+LIBRETRO_VK_WARP_FUNC(vkGetDeviceProcAddr);
+LIBRETRO_VK_WARP_LIST();
+
 #define VULKAN_MAX_SWAPCHAIN_IMAGES 8
 struct VkSwapchainKHR_T
 {
@@ -55,7 +71,7 @@ struct VkSwapchainKHR_T
 };
 static VkSwapchainKHR_T chain;
 
-static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
+static VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance_libretro(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
 {
 	*pInstance = vk_init_info.instance;
 	return VK_SUCCESS;
@@ -69,7 +85,7 @@ static void add_name_unique(std::vector<const char *> &list, const char *value)
 
 	list.push_back(value);
 }
-static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkDevice *pDevice)
+static VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice_libretro(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkDevice *pDevice)
 {
 	VkDeviceCreateInfo info = *pCreateInfo;
 	std::vector<const char *> EnabledLayerNames(info.ppEnabledLayerNames, info.ppEnabledLayerNames + info.enabledLayerCount);
@@ -98,13 +114,13 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physicalDevi
 	return vkCreateDevice_org(physicalDevice, &info, pAllocator, pDevice);
 }
 
-static VKAPI_ATTR VkResult VKAPI_CALL CreateSurfaceKHR(VkInstance instance, const void *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface)
+static VKAPI_ATTR VkResult VKAPI_CALL vkCreateLibretroSurfaceKHR(VkInstance instance, const void *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface)
 {
 	*pSurface = vk_init_info.surface;
 	return VK_SUCCESS;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilitiesKHR_libretro(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
 {
 	VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org(physicalDevice, surface, pSurfaceCapabilities);
 	if (res == VK_SUCCESS)
@@ -115,7 +131,7 @@ VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysica
 	return res;
 }
 
-static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchain)
+static VKAPI_ATTR VkResult VKAPI_CALL vkCreateSwapchainKHR_libretro(VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchain)
 {
 	uint32_t swapchain_mask = Libretro::vulkan->get_sync_index_mask(Libretro::vulkan->handle);
 
@@ -185,9 +201,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice device, const 
 
 	return VK_SUCCESS;
 }
-static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain_, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
+static VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainImagesKHR_libretro(VkDevice device, VkSwapchainKHR swapchain_, uint32_t *pSwapchainImageCount, VkImage *pSwapchainImages)
 {
-	VkSwapchainKHR_T* swapchain = (VkSwapchainKHR_T*)swapchain_;
+	VkSwapchainKHR_T *swapchain = (VkSwapchainKHR_T *)swapchain_;
 	if (pSwapchainImages)
 	{
 		assert(*pSwapchainImageCount <= swapchain->count);
@@ -200,7 +216,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL GetSwapchainImagesKHR(VkDevice device, VkS
 	return VK_SUCCESS;
 }
 
-static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t *pImageIndex)
+static VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImageKHR_libretro(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t *pImageIndex)
 {
 	Libretro::vulkan->wait_sync_index(Libretro::vulkan->handle);
 	*pImageIndex = Libretro::vulkan->get_sync_index(Libretro::vulkan->handle);
@@ -210,9 +226,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwa
 	return VK_SUCCESS;
 }
 
-static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
+static VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR_libretro(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
 {
-	VkSwapchainKHR_T* swapchain = (VkSwapchainKHR_T*)pPresentInfo->pSwapchains[0];
+	VkSwapchainKHR_T *swapchain = (VkSwapchainKHR_T *)pPresentInfo->pSwapchains[0];
 	std::unique_lock<std::mutex> lock(swapchain->mutex);
 #if 0
 	if(chain.current_index >= 0)
@@ -242,10 +258,10 @@ void LibretroVulkanContext::SwapBuffers()
 #endif
 }
 
-static VKAPI_ATTR void VKAPI_CALL DestroyInstance(VkInstance instance, const VkAllocationCallbacks *pAllocator) {}
-static VKAPI_ATTR void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallbacks *pAllocator) {}
-static VKAPI_ATTR void VKAPI_CALL DestroySurfaceKHR(VkInstance instance, VkSurfaceKHR surface, const VkAllocationCallbacks *pAllocator) {}
-static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks *pAllocator)
+static VKAPI_ATTR void VKAPI_CALL vkDestroyInstance_libretro(VkInstance instance, const VkAllocationCallbacks *pAllocator) {}
+static VKAPI_ATTR void VKAPI_CALL vkDestroyDevice_libretro(VkDevice device, const VkAllocationCallbacks *pAllocator) {}
+static VKAPI_ATTR void VKAPI_CALL vkDestroySurfaceKHR_libretro(VkInstance instance, VkSurfaceKHR surface, const VkAllocationCallbacks *pAllocator) {}
+static VKAPI_ATTR void VKAPI_CALL vkDestroySwapchainKHR_libretro(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks *pAllocator)
 {
 	for (int i = 0; i < chain.count; i++)
 	{
@@ -259,7 +275,7 @@ static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(VkDevice device, VkSwapcha
 	chain.current_index = -1;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence)
+VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit_libretro(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence)
 {
 	VkResult res = VK_SUCCESS;
 
@@ -284,7 +300,7 @@ VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t submitCount, 
 	return res;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL QueueWaitIdle(VkQueue queue)
+VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle_libretro(VkQueue queue)
 {
 	Libretro::vulkan->lock_queue(Libretro::vulkan->handle);
 	VkResult res = vkQueueWaitIdle_org(queue);
@@ -292,7 +308,7 @@ VKAPI_ATTR VkResult VKAPI_CALL QueueWaitIdle(VkQueue queue)
 	return res;
 }
 
-VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers)
+VKAPI_ATTR void VKAPI_CALL vkCmdPipelineBarrier_libretro(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers)
 {
 	VkImageMemoryBarrier *barriers = (VkImageMemoryBarrier *)pImageMemoryBarriers;
 	for (int i = 0; i < imageMemoryBarrierCount; i++)
@@ -311,12 +327,76 @@ VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkP
 	return vkCmdPipelineBarrier_org(commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, barriers);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass(VkDevice device, const VkRenderPassCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass)
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass_libretro(VkDevice device, const VkRenderPassCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass)
 {
 	if (pCreateInfo->pAttachments[0].finalLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 		((VkAttachmentDescription *)pCreateInfo->pAttachments)[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	return vkCreateRenderPass_org(device, pCreateInfo, pAllocator, pRenderPass);
+}
+
+#undef LIBRETRO_VK_WARP_FUNC
+#define LIBRETRO_VK_WARP_FUNC(x) \
+	do \
+	{ \
+		if (!strcmp(pName, #x)) \
+		{ \
+			x##_org = (PFN_##x)fptr; \
+			return (PFN_vkVoidFunction)x##_libretro; \
+		} \
+	} while (0)
+
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr_libretro(VkInstance instance, const char *pName)
+{
+	if(false
+	#ifdef _WIN32
+		|| !strcmp(pName, "vkCreateWin32SurfaceKHR")
+	#endif
+	#ifdef __ANDROID__
+		|| !strcmp(pName, "vkCreateAndroidSurfaceKHR")
+	#endif
+	#ifdef VK_USE_PLATFORM_XLIB_KHR
+		|| !strcmp(pName, "vkCreateXlibSurfaceKHR")
+	#endif
+	#ifdef VK_USE_PLATFORM_XCB_KHR
+		|| !strcmp(pName, "vkCreateXcbSurfaceKHR")
+	#endif
+	#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+		|| !strcmp(pName, "vkCreateWaylandSurfaceKHR")
+	#endif
+		)
+	{
+		return (PFN_vkVoidFunction)vkCreateLibretroSurfaceKHR;
+	}
+
+	PFN_vkVoidFunction fptr = vkGetInstanceProcAddr_org(instance, pName);
+	if (!fptr)
+		return fptr;
+
+	LIBRETRO_VK_WARP_LIST();
+
+
+	return fptr;
+}
+
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr_libretro(VkDevice device, const char *pName)
+{
+	PFN_vkVoidFunction fptr = vkGetDeviceProcAddr_org(device, pName);
+	if (!fptr)
+		return fptr;
+
+	LIBRETRO_VK_WARP_LIST();
+
+	return fptr;
+}
+
+static void init_libretro_vulkan_wrappers()
+{
+	vkGetInstanceProcAddr_org = vkGetInstanceProcAddr;
+	vkGetInstanceProcAddr = vkGetInstanceProcAddr_libretro;
+	vkGetDeviceProcAddr_org = vkGetDeviceProcAddr;
+	vkGetDeviceProcAddr = vkGetDeviceProcAddr_libretro;
+	vkCreateInstance = vkCreateInstance_libretro;
 }
 
 static bool create_device(retro_vulkan_context *context, VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr, const char **required_device_extensions, unsigned num_required_device_extensions, const char **required_device_layers, unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features)
@@ -341,14 +421,9 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 		ERROR_LOG(G3D, vk->InitError().c_str());
 		return false;
 	}
+	init_libretro_vulkan_wrappers();
 
-	vkCreateInstance = CreateInstance;
 	vk->CreateInstance({});
-
-	vkDestroyInstance = DestroyInstance;
-	vkCreateDevice_org = vkCreateDevice;
-	vkCreateDevice = CreateDevice;
-	vkDestroyDevice = DestroyDevice;
 
 	int physical_device = 0;
 	while (gpu && vk->GetPhysicalDevice(physical_device) != gpu)
@@ -359,53 +434,28 @@ static bool create_device(retro_vulkan_context *context, VkInstance instance, Vk
 
 	vk->ChooseDevice(physical_device);
 	vk->CreateDevice();
-#if 1
-	vk->InitSurface(WINDOWSYSTEM_LIBRETRO, (void*)surface, nullptr);
+#if 0
+	vk->InitSurface(WINDOWSYSTEM_LIBRETRO, (void *)surface, nullptr);
 #else
 #ifdef _WIN32
-	vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_WIN32, nullptr, nullptr);
 #endif
 #ifdef __ANDROID__
-	vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_ANDROID, nullptr, nullptr);
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-	vkCreateXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_XLIB, nullptr, nullptr);
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
-	vkCreateXcbSurfaceKHR = (PFN_vkCreateXcbSurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_XCB, nullptr, nullptr);
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-	vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)CreateSurfaceKHR;
 	vk->InitSurface(WINDOWSYSTEM_WAYLAND, nullptr, nullptr);
 #endif
 #endif
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR_org = vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR = GetPhysicalDeviceSurfaceCapabilitiesKHR;
-	vkDestroySurfaceKHR = DestroySurfaceKHR;
-	vkCreateSwapchainKHR = CreateSwapchainKHR;
-	vkGetSwapchainImagesKHR = GetSwapchainImagesKHR;
-	vkAcquireNextImageKHR = AcquireNextImageKHR;
-	vkQueuePresentKHR = QueuePresentKHR;
-	vkDestroySwapchainKHR = DestroySwapchainKHR;
 
 	if (!vk->InitQueue())
 		return false;
-
-	vkQueueSubmit_org = vkQueueSubmit;
-	vkQueueSubmit = QueueSubmit;
-
-	vkQueueWaitIdle_org = vkQueueWaitIdle;
-	vkQueueWaitIdle = QueueWaitIdle;
-
-	vkCmdPipelineBarrier_org = vkCmdPipelineBarrier;
-	vkCmdPipelineBarrier = CmdPipelineBarrier;
-
-	vkCreateRenderPass_org = vkCreateRenderPass;
-	vkCreateRenderPass = CreateRenderPass;
 
 	context->gpu = vk->GetPhysicalDevice(physical_device);
 	context->device = vk->GetDevice();
