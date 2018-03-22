@@ -112,6 +112,12 @@ struct VulkanDeviceExtensions {
 	bool DEDICATED_ALLOCATION;
 };
 
+// Useful for debugging on ARM Mali. This eliminates transaction elimination
+// which can cause artifacts if you get barriers wrong (or if there are driver bugs).
+// Cost is reduced performance on some GPU architectures.
+// #define VULKAN_USE_GENERAL_LAYOUT_FOR_COLOR
+// #define VULKAN_USE_GENERAL_LAYOUT_FOR_DEPTH_STENCIL
+
 // VulkanContext manages the device and swapchain, and deferred deletion of objects.
 class VulkanContext {
 public:
@@ -132,14 +138,13 @@ public:
 	bool EnableDeviceExtension(const char *extension);
 	VkResult CreateDevice();
 
-	const std::string &InitError() { return init_error_; }
+	const std::string &InitError() const { return init_error_; }
 
-	VkDevice GetDevice() { return device_; }
-	VkInstance GetInstance() { return instance_; }
+	VkDevice GetDevice() const { return device_; }
+	VkInstance GetInstance() const { return instance_; }
+	uint32_t GetFlags() const { return flags_; }
 
 	VulkanDeleteList &Delete() { return globalDeleteList_; }
-
-	VkPipelineCache CreatePipelineCache();
 
 	// The parameters are whatever the chosen window system wants.
 	void InitSurface(WindowSystem winsys, void *data1, void *data2, int width = -1, int height = -1);
@@ -151,9 +156,9 @@ public:
 
 	// Also destroys the surface.
 	void DestroyObjects();
-
 	void DestroyDevice();
 
+	void PerformPendingDeletes();
 	void WaitUntilQueueIdle();
 
 	// Utility functions for shorter code

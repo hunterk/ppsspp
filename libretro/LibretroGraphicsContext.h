@@ -1,8 +1,9 @@
 #pragma once
+#include <atomic>
 
 #include "libretro/libretro.h"
-#include "libretro/libretro_vulkan.h"
 #include "Common/GraphicsContext.h"
+#include "thin3d/thin3d_create.h"
 
 #include "Core/System.h"
 #include "GPU/GPUState.h"
@@ -26,7 +27,7 @@ class LibretroGraphicsContext : public GraphicsContext {
 	void Resize() override {}
 
 	virtual void CreateDrawContext() {}
-	void DestroyDrawContext()
+	virtual void DestroyDrawContext()
 	{
 		if (!draw_)
 			return;
@@ -45,15 +46,7 @@ protected:
 
 class LibretroHWRenderContext : public LibretroGraphicsContext {
 	public:
-	LibretroHWRenderContext(retro_hw_context_type context_type, unsigned version_major = 0, unsigned version_minor = 0)
-	{
-		hw_render_.context_type = context_type;
-		hw_render_.version_major = version_major;
-		hw_render_.version_minor = version_minor;
-		hw_render_.context_reset = context_reset;
-		hw_render_.context_destroy = context_destroy;
-		hw_render_.depth = true;
-	}
+	LibretroHWRenderContext(retro_hw_context_type context_type, unsigned version_major = 0, unsigned version_minor = 0);
 	bool Init() override;
 	void SetRenderTarget() override {}
 	void SwapBuffers() override
@@ -63,9 +56,8 @@ class LibretroHWRenderContext : public LibretroGraphicsContext {
 		else
 			video_cb(RETRO_HW_FRAME_BUFFER_VALID, PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight, 0);
 	}
-
-	static void context_reset(void);
-	static void context_destroy(void);
+	virtual void ContextReset();
+	virtual void ContextDestroy();
 
 	protected:
 	retro_hw_render_callback hw_render_ = {};
@@ -127,4 +119,21 @@ class LibretroNullContext : public LibretroGraphicsContext {
 namespace Libretro {
 extern LibretroGraphicsContext *ctx;
 extern retro_environment_t environ_cb;
+
+enum class EmuThreadState
+{
+	DISABLED,
+	START_REQUESTED,
+	RUNNING,
+	PAUSE_REQUESTED,
+	PAUSED,
+	QUIT_REQUESTED,
+	STOPPED,
+};
+extern bool useEmuThread;
+extern std::atomic<EmuThreadState> emuThreadState;
+void EmuThreadStart();
+void EmuThreadStop();
+void EmuThreadPause();
 }   // namespace Libretro
+

@@ -9,6 +9,10 @@ do
 			QT=1
 			CMAKE_ARGS="-DUSING_QT_UI=ON ${CMAKE_ARGS}"
 			;;
+		--qtbrew) echo "Qt enabled (homebrew)"
+			QT=1
+			CMAKE_ARGS="-DUSING_QT_UI=ON -DCMAKE_PREFIX_PATH=$(brew --prefix qt5) ${CMAKE_ARGS}"
+			;;
 		--ios) CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/ios.cmake ${CMAKE_ARGS}"
 			TARGET_OS=iOS
 			;;
@@ -33,7 +37,7 @@ do
 		--headless) echo "Headless mode enabled"
 			CMAKE_ARGS="-DHEADLESS=ON ${CMAKE_ARGS}"
 			;;
-		--libretro) echo "Libretro mode enabled"
+		--libretro) echo "Build Libretro core"
 			CMAKE_ARGS="-DLIBRETRO=ON ${CMAKE_ARGS}"
 			;;
 		--unittest) echo "Build unittest"
@@ -45,6 +49,9 @@ do
 		--clang) echo "Clang enabled"
 			export CC=/usr/bin/clang
 			export CXX=/usr/bin/clang++
+			;;
+		--sanitize) echo "Enabling address-sanitizer if available"
+			CMAKE_ARGS="-DUSE_ADDRESS_SANITIZER=ON ${CMAKE_ARGS}"
 			;;
 		*) MAKE_OPT="$1 ${MAKE_OPT}"
 			;;

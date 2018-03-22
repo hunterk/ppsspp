@@ -1,6 +1,8 @@
 
 #include <cstring>
 #include <cassert>
+#include <thread>
+#include <atomic>
 
 #include "base/timeutil.h"
 #include "Common/ChunkFile.h"
@@ -29,6 +31,7 @@
 #include "input/input_state.h"
 #include "base/NativeApp.h"
 #include "gfx/gl_common.h"
+#include "thread/threadutil.h"
 
 #include "libretro/libretro.h"
 #include "libretro/LibretroGraphicsContext.h"
@@ -415,6 +418,98 @@ unsigned retro_api_version(void)
 {
 	return RETRO_API_VERSION;
 }
+namespace Libretro {
+
+bool useEmuThread = false;
+std::atomic<EmuThreadState> emuThreadState(EmuThreadState::DISABLED);
+
+static std::thread emuThread;
+static void EmuFrame()
+{
+	ctx->SetRenderTarget();
+	if (ctx->GetDrawContext())
+		ctx->GetDrawContext()->BeginFrame();
+
+	gpu->BeginHostFrame();
+
+	coreState = CORE_RUNNING;
+	PSP_RunLoopUntil(UINT64_MAX);
+
+	gpu->EndHostFrame();
+
+	if (ctx->GetDrawContext())
+		ctx->GetDrawContext()->EndFrame();
+}
+
+static void EmuThreadFunc()
+{
+	setCurrentThreadName("Emu");
+
+	while (true)
+	{
+		switch (emuThreadState)
+		{
+			case EmuThreadState::START_REQUESTED:
+				emuThreadState = EmuThreadState::RUNNING;
+				/* fallthrough */
+			case EmuThreadState::RUNNING:
+				EmuFrame();
+				break;
+			case EmuThreadState::PAUSE_REQUESTED:
+				emuThreadState = EmuThreadState::PAUSED;
+				/* fallthrough */
+			case EmuThreadState::PAUSED:
+				sleep_ms(1);
+				break;
+			default:
+			case EmuThreadState::QUIT_REQUESTED:
+				emuThreadState = EmuThreadState::STOPPED;
+				ctx->StopThread();
+				return;
+		}
+	}
+}
+
+void EmuThreadStart()
+{
+	bool wasPaused = emuThreadState == EmuThreadState::PAUSED;
+	emuThreadState = EmuThreadState::START_REQUESTED;
+
+	if (!wasPaused)
+	{
+		ctx->ThreadStart();
+		emuThread = std::thread(&EmuThreadFunc);
+	}
+}
+
+void EmuThreadStop()
+{
+	if (emuThreadState != EmuThreadState::RUNNING)
+		return;
+
+	emuThreadState = EmuThreadState::QUIT_REQUESTED;
+
+	while (ctx->ThreadFrame())
+	{
+		// Need to keep eating frames to allow the EmuThread to exit correctly.
+		continue;
+	}
+	emuThread.join();
+	emuThread = std::thread();
+	ctx->ThreadEnd();
+}
+
+void EmuThreadPause()
+{
+	if (emuThreadState != EmuThreadState::RUNNING)
+		return;
+	emuThreadState = EmuThreadState::PAUSE_REQUESTED;
+	ctx->ThreadFrame();
+	while (emuThreadState != EmuThreadState::PAUSED)
+		sleep_ms(1);
+}
+
+}   // namespace Libretro
 
 bool retro_load_game(const struct retro_game_info *game)
 {
@@ -494,6 +589,11 @@ bool retro_load_game(const struct retro_game_info *game)
 	ctx = LibretroGraphicsContext::CreateGraphicsContext();
 	INFO_LOG(SYSTEM, "Using %s backend", ctx->Ident());
 
+	Core_SetGraphicsContext(ctx);
+	SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
+
+	useEmuThread = ctx->GetGPUCore() == GPUCORE_GLES;
+
 	CoreParameter coreParam = {};
 	coreParam.enableSound = true;
 	coreParam.fileToStart = std::string(game->path);
@@ -523,6 +623,9 @@ bool retro_load_game(const struct retro_game_info *game)
 
 void retro_unload_game(void)
 {
+	if (Libretro::useEmuThread)
+		Libretro::EmuThreadStop();
+
 	PSP_Shutdown();
 	VFSShutdown();
 
@@ -618,19 +721,16 @@ void retro_run(void)
 
 	retro_input();
 
-	ctx->SetRenderTarget();
-	if (ctx->GetDrawContext())
-		ctx->GetDrawContext()->BeginFrame();
+	if (useEmuThread)
+	{
+		if (emuThreadState != EmuThreadState::RUNNING)
+			EmuThreadStart();
 
-	gpu->BeginHostFrame();
-
-	coreState = CORE_RUNNING;
-	PSP_RunLoopUntil(UINT64_MAX);
-
-	gpu->EndHostFrame();
-
-	if (ctx->GetDrawContext())
-		ctx->GetDrawContext()->EndFrame();
+		if (!ctx->ThreadFrame())
+			return;
+	}
+	else
+		EmuFrame();
 
 	ctx->SwapBuffers();
 }
@@ -658,13 +758,13 @@ struct SaveStart
 size_t retro_serialize_size(void)
 {
 	SaveState::SaveStart state;
-	return CChunkFileReader::MeasurePtr(state);
+	return (CChunkFileReader::MeasurePtr(state) + 0x800000) & ~0x7FFFFF;
 }
 
 bool retro_serialize(void *data, size_t size)
 {
 	SaveState::SaveStart state;
-	assert(CChunkFileReader::MeasurePtr(state) == size);
+	assert(CChunkFileReader::MeasurePtr(state) <= size);
 	return CChunkFileReader::SavePtr((u8 *)data, state) == CChunkFileReader::ERROR_NONE;
 }
 
@@ -717,3 +817,7 @@ void System_SendMessage(const char *command, const char *parameter) {}
 void NativeUpdate() {}
 void NativeRender(GraphicsContext *graphicsContext) {}
 void NativeResized() {}
+bool System_InputBoxGetWString(const wchar_t *title, const std::wstring &defaultvalue, std::wstring &outvalue)
+{
+	return false;
+}

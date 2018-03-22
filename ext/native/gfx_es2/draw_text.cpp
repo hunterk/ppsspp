@@ -47,7 +47,7 @@ TextDrawer *TextDrawer::Create(Draw::DrawContext *draw) {
 	drawer = new TextDrawerWin32(draw);
 #elif defined(USING_QT_UI)
 	drawer = new TextDrawerQt(draw);
-#elif PPSSPP_PLATFORM(ANDROID) && !defined(__LIBRETRO__)
+#elif PPSSPP_PLATFORM(ANDROID)
 	drawer = new TextDrawerAndroid(draw);
 #endif
 	if (drawer && !drawer->IsReady()) {

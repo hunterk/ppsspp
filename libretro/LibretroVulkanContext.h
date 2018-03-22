@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/Vulkan/VulkanLoader.h"
 #include "libretro/LibretroGraphicsContext.h"
 
 class LibretroVulkanContext : public LibretroHWRenderContext {
@@ -14,10 +15,10 @@ class LibretroVulkanContext : public LibretroHWRenderContext {
 	bool Init() override;
 	void Shutdown() override;
 	void SwapBuffers() override;
+	void ContextDestroy() override;
 
 	void *GetAPIContext() override;
 	void CreateDrawContext() override;
 	GPUCore GetGPUCore() override { return GPUCORE_VULKAN; }
 	const char *Ident() override { return "Vulkan"; }
-	static LibretroVulkanContext *GetInstance() { return (LibretroVulkanContext *)PSP_CoreParameter().graphicsContext; }
 };
