@@ -445,30 +445,29 @@ static void EmuThreadFunc()
 {
 	setCurrentThreadName("Emu");
 
-	while(true)
+	while (true)
 	{
-		switch(emuThreadState)
+		switch (emuThreadState)
 		{
-		case EmuThreadState::START_REQUESTED:
-			emuThreadState = EmuThreadState::RUNNING;
-			/* fallthrough */
-		case EmuThreadState::RUNNING:
-			EmuFrame();
-			break;
-		case EmuThreadState::PAUSE_REQUESTED:
-			emuThreadState = EmuThreadState::PAUSED;
-			/* fallthrough */
-		case EmuThreadState::PAUSED:
-			sleep_ms(1);
-			break;
-		default:
-		case EmuThreadState::QUIT_REQUESTED:
-			emuThreadState = EmuThreadState::STOPPED;
-			ctx->StopThread();
-			return;
+			case EmuThreadState::START_REQUESTED:
+				emuThreadState = EmuThreadState::RUNNING;
+				/* fallthrough */
+			case EmuThreadState::RUNNING:
+				EmuFrame();
+				break;
+			case EmuThreadState::PAUSE_REQUESTED:
+				emuThreadState = EmuThreadState::PAUSED;
+				/* fallthrough */
+			case EmuThreadState::PAUSED:
+				sleep_ms(1);
+				break;
+			default:
+			case EmuThreadState::QUIT_REQUESTED:
+				emuThreadState = EmuThreadState::STOPPED;
+				ctx->StopThread();
+				return;
 		}
 	}
-
 }
 
 void EmuThreadStart()
@@ -476,7 +475,7 @@ void EmuThreadStart()
 	bool wasPaused = emuThreadState == EmuThreadState::PAUSED;
 	emuThreadState = EmuThreadState::START_REQUESTED;
 
-	if(!wasPaused)
+	if (!wasPaused)
 	{
 		ctx->ThreadStart();
 		emuThread = std::thread(&EmuThreadFunc);
@@ -485,7 +484,7 @@ void EmuThreadStart()
 
 void EmuThreadStop()
 {
-	if(emuThreadState != EmuThreadState::RUNNING)
+	if (emuThreadState != EmuThreadState::RUNNING)
 		return;
 
 	emuThreadState = EmuThreadState::QUIT_REQUESTED;
@@ -502,11 +501,11 @@ void EmuThreadStop()
 
 void EmuThreadPause()
 {
-	if(emuThreadState != EmuThreadState::RUNNING)
+	if (emuThreadState != EmuThreadState::RUNNING)
 		return;
 	emuThreadState = EmuThreadState::PAUSE_REQUESTED;
 	ctx->ThreadFrame();
-	while(emuThreadState != EmuThreadState::PAUSED)
+	while (emuThreadState != EmuThreadState::PAUSED)
 		sleep_ms(1);
 }
 
@@ -716,7 +715,7 @@ void retro_run(void)
 			environ_cb(RETRO_ENVIRONMENT_SHUTDOWN, nullptr);
 			return;
 		}
- 	}
+	}
 
 	check_variables(PSP_CoreParameter());
 
@@ -818,3 +817,7 @@ void System_SendMessage(const char *command, const char *parameter) {}
 void NativeUpdate() {}
 void NativeRender(GraphicsContext *graphicsContext) {}
 void NativeResized() {}
+bool System_InputBoxGetWString(const wchar_t *title, const std::wstring &defaultvalue, std::wstring &outvalue)
+{
+	return false;
+}

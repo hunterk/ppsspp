@@ -421,7 +421,7 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr_libretro(VkDevice d
 	return fptr;
 }
 
-bool vk_libretro_init(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr, const char **required_device_extensions, unsigned num_required_device_extensions, const char **required_device_layers, unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features)
+void vk_libretro_init(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr, const char **required_device_extensions, unsigned num_required_device_extensions, const char **required_device_layers, unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features)
 {
 	assert(surface);
 
@@ -442,9 +442,9 @@ bool vk_libretro_init(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR su
 	vkCreateInstance = vkCreateInstance_libretro;
 }
 
-void vk_libretro_set_hwrender_interface(retro_hw_render_interface*interface)
+void vk_libretro_set_hwrender_interface(retro_hw_render_interface* hw_render_interface)
 {
-	vulkan = (retro_hw_render_interface_vulkan *)interface;
+	vulkan = (retro_hw_render_interface_vulkan *)hw_render_interface;
 }
 void vk_libretro_shutdown()
 {

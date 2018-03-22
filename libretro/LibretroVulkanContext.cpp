@@ -14,9 +14,9 @@
 
 static VulkanContext *vk;
 
-bool vk_libretro_init(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr, const char **required_device_extensions, unsigned num_required_device_extensions, const char **required_device_layers, unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features);
+void vk_libretro_init(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr, const char **required_device_extensions, unsigned num_required_device_extensions, const char **required_device_layers, unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features);
 void vk_libretro_shutdown();
-void vk_libretro_set_hwrender_interface(retro_hw_render_interface *interface);
+void vk_libretro_set_hwrender_interface(retro_hw_render_interface *hw_render_interface);
 void vk_libretro_wait_for_presentation();
 
 void LibretroVulkanContext::SwapBuffers()
